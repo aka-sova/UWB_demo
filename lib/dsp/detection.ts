@@ -62,7 +62,7 @@ export function connectedSpots(tf:TimeFrequency,mask:Uint8Array,minCells:number)
   }
   return spots;
 }
-export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:Config):Pulse[]{
+export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:Config,matched?:Float64Array):Pulse[]{
   const groups:Spot[][]=[];
   for(const s of [...spots].sort((a,b)=>a.start-b.start)){
     const found=groups.find(g=>{
@@ -110,7 +110,14 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
     const p0=powerAt(iq,Math.max(0,peak-1)),p1=powerAt(iq,peak),p2=powerAt(iq,Math.min(n-1,peak+1));
     let time=(peak+Math.max(-.5,Math.min(.5,.5*(p0-p2)/(p0-2*p1+p2||1))))/fs;
     // A peak on the ADC rails is a flat plateau: its first sample is not the arrival time.
-    if(onRail(peak)){let l=peak,r=peak;while(l>0&&onRail(l-1))l--;while(r<n-1&&onRail(r+1))r++;time=(l+r)/2/fs;}
+    if(matched&&c.family!=="gaussian"){
+      // Derivative pulses peak on a lobe (±σ) and chirps have long envelopes: time the arrival
+      // from the known-template correlation, which peaks at the pulse center.
+      const radius=Math.ceil(2*c.sigma*fs);let m=Math.max(1,peak-radius);
+      for(let i=m+1;i<=Math.min(n-2,peak+radius);i++)if(matched[i]>matched[m])m=i;
+      const m0=matched[m-1],m1=matched[m],m2=matched[m+1];
+      time=(m+Math.max(-.5,Math.min(.5,.5*(m0-m2)/(m0-2*m1+m2||1))))/fs;
+    }else if(onRail(peak)){let l=peak,r=peak;while(l>0&&onRail(l-1))l--;while(r<n-1&&onRail(r+1))r++;time=(l+r)/2/fs;}
     const width=halfPowerWidth(iq,peak,fs),localSize=Math.min(2048,Math.max(256,2**Math.ceil(Math.log2(width*fs*8))));
     const local=new Float64Array(localSize*2),left=peak-localSize/2;
     let pulseEnergy=0,clipped=false;
@@ -187,11 +194,11 @@ export function analyze(r:Result):Detection{
     let occupied=0;for(let t=0;t<r.tf.frames;t++)occupied+=candidateMask[t*r.tf.bins+f];
     if(occupied/r.tf.frames>.6)for(let t=0;t<r.tf.frames;t++)candidateMask[t*r.tf.bins+f]=0;
   }
-  const spots=connectedSpots(r.tf,candidateMask,c.minCells),pulses=assemblePulses(r.tf,spots,r.iq,c);
+  const matched=matchedFilter(r.iq,c),spots=connectedSpots(r.tf,candidateMask,c.minCells),pulses=assemblePulses(r.tf,spots,r.iq,c,matched);
   // Only retained components contribute to the reconstruction mask.
   const cleanMask=new Uint8Array(det.mask.length);for(const s of spots)for(const k of s.cells)cleanMask[k]=1;
   const recovered=inverseSTFT(r.tf,c,r.time.length,cleanMask),unmasked=inverseSTFT(r.tf,c,r.time.length);
-  const fitted=templateFit(r.iq,pulses,c),matched=matchedFilter(r.iq,c);
+  const fitted=templateFit(r.iq,pulses,c);
   let mse=0,roundTrip=0,total=0;
   for(let i=0;i<r.iq.length;i++){mse+=(r.iq[i]-recovered[i])**2;roundTrip+=(r.iq[i]-unmasked[i])**2;total+=r.iq[i]**2;}
   const energyTrace=new Float64Array(r.time.length),span=Math.max(1,Math.round(c.sigma*c.sampleRate));let rolling=0;

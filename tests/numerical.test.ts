@@ -150,3 +150,9 @@ test("first-arrival search-back recovers the weak direct paths hidden by stronge
   assert.equal(d.matchedCount,6);assert.equal(d.falseEvents,0);assert.ok(d.timingRmse<.1e-9);
   assert.deepEqual(d.pulses.filter(p=>p.firstPath).map(p=>p.match),["A1","A2","A3"]);
 });
+test("monocycle and chirp arrivals are timed from the known-template correlation",()=>{
+  const mono=analyze(simulateAcquisition({...defaults,family:"monocycle"}));
+  assert.equal(mono.matchedCount,5);assert.ok(mono.timingRmse<.1e-9,"monocycle "+(mono.timingRmse*1e12).toFixed(0)+" ps");
+  const chirp=analyze(simulateAcquisition(scenarioConfig("chirp")));
+  assert.equal(chirp.matchedCount,3);assert.ok(chirp.timingRmse<.1e-9,"chirp "+(chirp.timingRmse*1e12).toFixed(0)+" ps");
+});
