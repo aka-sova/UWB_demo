@@ -74,6 +74,8 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
   const pulses:Pulse[]=[],fs=c.sampleRate,n=iq.length/2;
   const recordPowers=Array.from({length:n},(_,i)=>powerAt(iq,i)).sort((a,b)=>a-b);
   const recordNoise=recordPowers[Math.floor(n/2)]/Math.log(2);
+  const step=2*c.fullScale/2**c.bits,top=(2**(c.bits-1)-1)*step-step/2,bottom=-c.fullScale+step/2;
+  const onRail=(k:number)=>!c.realRF&&(iq[2*k]>=top||iq[2*k]<=bottom||iq[2*k+1]>=top||iq[2*k+1]<=bottom);
   for(const group of groups){
     const start=Math.max(0,Math.min(...group.map(s=>s.start))-tf.windowDuration/2);
     const end=Math.min(n/fs,Math.max(...group.map(s=>s.end))+tf.windowDuration/2);
@@ -97,7 +99,9 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
     for(const refined of peaks.sort((a,b)=>a-b)){
     peak=refined;
     const p0=powerAt(iq,Math.max(0,peak-1)),p1=powerAt(iq,peak),p2=powerAt(iq,Math.min(n-1,peak+1));
-    const delta=Math.max(-.5,Math.min(.5,.5*(p0-p2)/(p0-2*p1+p2||1))),time=(peak+delta)/fs;
+    let time=(peak+Math.max(-.5,Math.min(.5,.5*(p0-p2)/(p0-2*p1+p2||1))))/fs;
+    // A peak on the ADC rails is a flat plateau: its first sample is not the arrival time.
+    if(onRail(peak)){let l=peak,r=peak;while(l>0&&onRail(l-1))l--;while(r<n-1&&onRail(r+1))r++;time=(l+r)/2/fs;}
     const width=halfPowerWidth(iq,peak,fs),localSize=Math.min(2048,Math.max(256,2**Math.ceil(Math.log2(width*fs*8))));
     const local=new Float64Array(localSize*2),left=peak-localSize/2;
     let pulseEnergy=0,clipped=false;

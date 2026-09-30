@@ -115,3 +115,8 @@ test("delayed copies carry the carrier phase exp(-j2π fc τ)",()=>{
   const mid=Math.round((r.truth[0].time+c.echoDelay/2)*c.sampleRate),v=Math.sqrt(powerAt(r.channel,mid));
   assert.ok(v<.05*c.amplitude,"midpoint |channel| "+v.toFixed(3)+" V");
 });
+test("arrival time of an ADC-clipped pulse is the plateau center, not its first sample",()=>{
+  const c={...scenarioConfig("transient"),recovery:0,echoGain:0},r=simulateAcquisition(c),d=analyze(r);
+  assert.ok(r.clipped>0);assert.equal(d.matchedCount,3);
+  assert.ok(d.timingRmse<.1e-9,"timing RMSE "+(d.timingRmse*1e12).toFixed(0)+" ps");
+});
