@@ -143,3 +143,10 @@ test("train 1 is the largest candidate train, so PRI ignores an isolated false e
   assert.equal(Math.max(...sizes.values()),sizes.get(1));
   assert.ok(Math.abs(d.pri-defaults.pri)<1e-9,"PRI "+d.pri);
 });
+test("first-arrival search-back recovers the weak direct paths hidden by stronger echoes",()=>{
+  const base=scenarioConfig("multipath"),plain=analyze(simulateAcquisition(base));
+  assert.equal(plain.matchedCount,3);assert.ok(plain.pulses.every(p=>p.match?.startsWith("E")));
+  const d=analyze(simulateAcquisition({...base,searchBack:20e-9}));
+  assert.equal(d.matchedCount,6);assert.equal(d.falseEvents,0);assert.ok(d.timingRmse<.1e-9);
+  assert.deepEqual(d.pulses.filter(p=>p.firstPath).map(p=>p.match),["A1","A2","A3"]);
+});

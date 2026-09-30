@@ -76,6 +76,8 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
   const recordNoise=recordPowers[Math.floor(n/2)]/Math.log(2);
   const step=2*c.fullScale/2**c.bits,top=(2**(c.bits-1)-1)*step-step/2,bottom=-c.fullScale+step/2;
   const onRail=(k:number)=>!c.realRF&&(iq[2*k]>=top||iq[2*k]<=bottom||iq[2*k+1]>=top||iq[2*k+1]<=bottom);
+  const smooth=(i:number)=>(powerAt(iq,i-1)+2*powerAt(iq,i)+powerAt(iq,i+1))/4;
+  let lastPeak=-Infinity,lastWidth=0;
   for(const group of groups){
     const start=Math.max(0,Math.min(...group.map(s=>s.start))-tf.windowDuration/2);
     const end=Math.min(n/fs,Math.max(...group.map(s=>s.end))+tf.windowDuration/2);
@@ -86,7 +88,6 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
     // valley falls below half of the weaker peak. No source event times are used.
     if(c.family==="gaussian"){
       const candidates:number[]=[];
-      const smooth=(i:number)=>(powerAt(iq,i-1)+2*powerAt(iq,i)+powerAt(iq,i+1))/4;
       for(let i=Math.max(2,Math.floor(start*fs));i<Math.min(n-2,Math.ceil(end*fs));i++)
         if(smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)&&smooth(i)>.15*smooth(peak))candidates.push(i);
       candidates.sort((a,b)=>smooth(b)-smooth(a));
@@ -95,6 +96,14 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
         const separate=peaks.every(p=>{if(Math.abs(candidate-p)<3)return false;let valley=Infinity;for(let i=Math.min(p,candidate);i<=Math.max(p,candidate);i++)valley=Math.min(valley,smooth(i));return valley<.5*Math.min(smooth(p),smooth(candidate));});
         if(separate)peaks.push(candidate);
       }
+    }
+    // First-arrival search: CFAR training around a strong arrival can mask an earlier, weaker
+    // path. Look back for the earliest local maximum above the energy threshold over record noise.
+    let firstPath=-1;
+    if(c.searchBack>0){
+      const earliest=Math.min(...peaks),w=halfPowerWidth(iq,peaks[0],fs),limit=recordNoise*10**(c.thresholdDb/10);
+      const from=Math.max(2,Math.floor((earliest/fs-c.searchBack)*fs),Math.ceil(lastPeak+3*lastWidth*fs)),to=earliest-Math.ceil(3*w*fs);
+      for(let i=from;i<to;i++)if(smooth(i)>limit&&smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)){firstPath=i;peaks.push(i);break;}
     }
     for(const refined of peaks.sort((a,b)=>a-b)){
     peak=refined;
@@ -112,7 +121,8 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
     const edge:number[]=[];
     for(let i=Math.max(0,Math.floor(start*fs));i<Math.min(n,Math.ceil(end*fs));i++)if(Math.abs(i-peak)>3*width*fs)edge.push(powerAt(iq,i));
     edge.sort((a,b)=>a-b);const noise=edge.length?edge[Math.floor(edge.length/2)]/Math.log(2):recordNoise;
-    pulses.push({id:pulses.length+1,time,width,amplitude:Math.sqrt(p1),energy:pulseEnergy,frequency:c.carrier+weighted/Math.max(weight,1e-30),bandwidth:high-low,snr:db(p1/Math.max(1e-30,noise)),spotIds:group.map(v=>v.id),start,end,clipped,train:0});
+    pulses.push({id:pulses.length+1,time,width,amplitude:Math.sqrt(p1),energy:pulseEnergy,frequency:c.carrier+weighted/Math.max(weight,1e-30),bandwidth:high-low,snr:db(p1/Math.max(1e-30,noise)),spotIds:group.map(v=>v.id),start,end,clipped,train:0,firstPath:refined===firstPath||undefined});
+    if(refined>lastPeak){lastPeak=refined;lastWidth=width;}
     }
   }
   // Frequency-consistent candidate trains. This heuristic deliberately exposes ambiguous merges.

@@ -14,5 +14,6 @@ export const configSchema=z.object({
  hop:z.union([z.literal(8),z.literal(16),z.literal(32),z.literal(64),z.literal(128)]),window:z.enum(["hann","hamming","rectangular"]),
  detector:z.enum(["fixed","ca","os"]),thresholdDb:z.number().min(3).max(30),pfa:z.number().min(.00001).max(.1),
  training:z.number().int().min(2).max(12),guard:z.number().int().min(1).max(12),minCells:z.number().int().min(1).max(40),
- mergeGap:z.number().min(0).max(12e-9),seed:z.number().int().min(0).max(4294967295),ppm:z.boolean(),slot:z.number().min(.5e-9).max(16e-9),rejectTones:z.boolean()
+ mergeGap:z.number().min(0).max(12e-9),seed:z.number().int().min(0).max(4294967295),ppm:z.boolean(),slot:z.number().min(.5e-9).max(16e-9),rejectTones:z.boolean(),
+ searchBack:z.number().min(0).max(30e-9)
 }).strict();
