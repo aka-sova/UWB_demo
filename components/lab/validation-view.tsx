@@ -4,12 +4,13 @@ import type {Config,Result} from "@/lib/dsp/types";
 import type {ValidationResult} from "@/lib/dsp/validation";
 import {Button} from "@/components/ui/button";
 import {Progress} from "@/components/ui/progress";
+import DspWorker from "../../lib/dsp/worker?worker";
 export function ValidationView({config,result}:{config:Config;result:Result}){
  const [validation,setValidation]=useState<ValidationResult>(),[progress,setProgress]=useState(0),[running,setRunning]=useState(false),[error,setError]=useState("");
  const worker=useRef<Worker|null>(null);useEffect(()=>()=>worker.current?.terminate(),[]);
  const run=()=>{
   worker.current?.terminate();setRunning(true);setProgress(0);setError("");
-  const w=new Worker(new URL("../../lib/dsp/worker.ts",import.meta.url),{type:"module"});worker.current=w;
+  const w=new DspWorker();worker.current=w;
   w.onmessage=e=>{if(e.data.progress)setProgress(e.data.progress);if(e.data.validation){setValidation(e.data.validation);setRunning(false);w.terminate();}if(e.data.error){setError(e.data.error);setRunning(false);w.terminate();}};
   w.onerror=e=>{setError(e.message);setRunning(false);};w.postMessage({id:1,type:"validate",config,trials:16});
  };
