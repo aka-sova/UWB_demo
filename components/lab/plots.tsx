@@ -60,8 +60,10 @@ export function Spectrogram({result,domain,cursor,onCursor,mode="power",selected
       ictx.putImageData(pixels,0,0);raster.current={result,mask:mode==="mask",image:img};
       }
       ctx.imageSmoothingEnabled=false;
-      const end=tf.frames*Math.min(result.config.hop,result.config.windowSize/2)/result.config.sampleRate*1e9;
-      ctx.drawImage(img,domain[0]/end*tf.frames,0,(domain[1]-domain[0])/end*tf.frames,tf.bins,L,T,w,h);
+      // Frame m is centered at m·hop and bin f at frequencies[f]: offset the source rectangle by half a
+      // pixel so pixel centers, not edges, land on the time and frequency axes and on the overlays.
+      const frameNs=Math.min(result.config.hop,result.config.windowSize/2)/result.config.sampleRate*1e9;
+      ctx.drawImage(img,domain[0]/frameNs+.5,.5,(domain[1]-domain[0])/frameNs,tf.bins-1,L,T,w,h);
       const fx=(t:number)=>L+(t*1e9-domain[0])/(domain[1]-domain[0])*w;
       const fmin=tf.frequencies[0],fmax=tf.frequencies[tf.bins-1],fy=(f:number)=>T+h-(f-fmin)/(fmax-fmin)*h;
       ctx.save();ctx.beginPath();ctx.rect(L,T,w,h);ctx.clip();
