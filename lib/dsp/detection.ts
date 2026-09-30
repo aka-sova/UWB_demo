@@ -155,6 +155,15 @@ export function pulseSupport(p:Pulse,spots:Spot[]){
   const own=spots.filter(s=>p.spotIds.includes(s.id));
   return {start:Math.min(...own.map(s=>s.start)),end:Math.max(...own.map(s=>s.end)),low:Math.min(...own.map(s=>s.low)),high:Math.max(...own.map(s=>s.high))};
 }
+// Boxes to draw for a set of pulse ids, merging pulses that share the same support.
+export function pulseBoxes(ids:number[],pulses:Pulse[],spots:Spot[]){
+  const boxes=new Map<string,{ids:number[];box:ReturnType<typeof pulseSupport>}>();
+  for(const p of pulses.filter(v=>ids.includes(v.id)).sort((a,b)=>a.id-b.id)){
+    const key=[...p.spotIds].sort((a,b)=>a-b).join(","),entry=boxes.get(key);
+    if(entry)entry.ids.push(p.id);else boxes.set(key,{ids:[p.id],box:pulseSupport(p,spots)});
+  }
+  return [...boxes.values()];
+}
 export function inverseSTFT(tf:TimeFrequency,c:Config,n:number,mask?:Uint8Array){
   const y=new Float64Array(n*2),denom=new Float64Array(n),L=tf.window.length,F=tf.fullBins,hop=Math.min(c.hop,L/2);
   for(let frame=0;frame<tf.frames;frame++){

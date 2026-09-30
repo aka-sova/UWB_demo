@@ -199,3 +199,12 @@ test("a pulse's time-frequency support is the union of its spots",async()=>{
     assert.ok(box.high-box.low<r.tf.frequencies[r.tf.bins-1]-r.tf.frequencies[0],"bounded in frequency");
   }
 });
+test("pulses that share a support are drawn as one labelled box",async()=>{
+  const {pulseBoxes}=await import("../lib/dsp/detection");
+  const shared=analyze(simulateAcquisition(scenarioConfig("reflectors")));
+  assert.equal(shared.spots.length,1);assert.equal(shared.pulses.length,2);
+  assert.deepEqual(pulseBoxes([1,2],shared.pulses,shared.spots).map(b=>b.ids),[[1,2]]);
+  const separate=analyze(simulateAcquisition(scenarioConfig("overlap"))),ids=separate.pulses.map(p=>p.id);
+  assert.equal(pulseBoxes(ids,separate.pulses,separate.spots).length,new Set(separate.pulses.map(p=>p.spotIds.join(","))).size);
+  assert.deepEqual(pulseBoxes([3,1],separate.pulses,separate.spots).map(b=>b.ids),[[1],[3]]);
+});

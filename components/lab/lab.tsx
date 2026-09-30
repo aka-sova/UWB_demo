@@ -27,6 +27,11 @@ export default function Lab(){
  const [fontScale,setFontScale]=useState(1),[playing,setPlaying]=useState(false),[controlsOpen,setControlsOpen]=useState(true),[touring,setTouring]=useState(false);
  const worker=useRef<Worker|null>(null),job=useRef(0);
  const pending=useRef<{signature:string;resolve:(v:unknown)=>void;reject:(e:Error)=>void}[]>([]);
+ // Pulses whose boxes are drawn on the time-frequency plane: every pulse, or ids checked for one result.
+ const [pulseChecks,setPulseChecks]=useState<{all:boolean;result?:Result;ids:number[]}>({all:false,ids:[]});
+ const allPulseIds=result?.detection?.pulses.map(p=>p.id)??[];
+ const shownPulses=pulseChecks.all?allPulseIds:pulseChecks.result===result?pulseChecks.ids:[];
+ const togglePulse=(id:number)=>setPulseChecks({all:false,result,ids:shownPulses.includes(id)?shownPulses.filter(v=>v!==id):[...shownPulses,id]});
  const summary=(r:Result)=>({parameters:r.config,pulses:r.detection?.pulses.length,matches:r.detection?.matchedCount,missed:r.detection?.missed,falseEvents:r.detection?.falseEvents,sourceBandwidthHz:r.sourceBandwidth,sourceWidthSeconds:r.sourceWidth,elapsedMs:r.elapsed});
  useEffect(()=>{
   // Hydrate browser-only preferences after the server and first client render agree.
@@ -105,7 +110,7 @@ export default function Lab(){
       <TabsContent value="receiver">
        <nav className="pipeline" aria-label="Receiver stages" data-tour="pipeline">{stages.map((s,i)=><button className={"stage "+(stage===i?"active":"")} key={s.name} aria-pressed={stage===i} onClick={()=>{setStage(i);if(i===5)setMaskMode("mask");if(i===6)setMaskMode("spots");}}><span>{String(i+1).padStart(2,"0")}</span><strong>{s.name}</strong>{i<6&&<ChevronRight size={14}/>}</button>)}</nav>
        <div className="plot-toolbar" data-tour="plot-toolbar"><span>Cursor <b>{cursor.toFixed(3)} ns</b> · view {domain[0].toFixed(1)}–{domain[1].toFixed(1)} ns</span><div><Button variant="ghost" size="icon-sm" aria-label="Pan earlier" onClick={()=>pan(-1)}><ChevronLeft/></Button><Button variant="ghost" size="icon-sm" aria-label="Pan later" onClick={()=>pan(1)}><ChevronRight/></Button><Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={()=>zoom(.5)}><ZoomIn/></Button><Button variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={()=>zoom(2)}><ZoomOut/></Button><Button variant="outline" size="sm" onClick={focus}><Focus size={14}/>{domain[1]-domain[0]<510?"Full record":"Focus cursor"}</Button></div></div>
-       <ReceiverView r={result} stage={stage} advanced={advanced} theme={theme} domain={domain} cursor={cursor} setCursor={setCursor} selected={selected} setSelected={setSelected} maskMode={maskMode} setMaskMode={setMaskMode} representation={representation} setRepresentation={setRepresentation}/>
+       <ReceiverView r={result} stage={stage} advanced={advanced} theme={theme} domain={domain} cursor={cursor} setCursor={setCursor} selected={selected} setSelected={setSelected} shownPulses={shownPulses} togglePulse={togglePulse} showAllPulses={()=>setPulseChecks({all:true,ids:[]})} clearPulses={()=>{setPulseChecks({all:false,ids:[]});setSelected(undefined);}} maskMode={maskMode} setMaskMode={setMaskMode} representation={representation} setRepresentation={setRepresentation}/>
        <section className="insight-strip"><span className="insight-icon">∿</span><div><h2>{selectedScenario.question}</h2><p>{selectedScenario.observation}</p></div></section>
        {config.ppm&&<div className="ppm-prompt"><span>Decoded symbols: <b>{result.detection.ppm.decoded.join(" ")}</b> · {result.detection.ppm.errors} errors</span><Button variant="outline" size="sm" onClick={()=>setView("applications")}>Inspect symbol decisions</Button></div>}
       </TabsContent>
