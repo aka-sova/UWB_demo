@@ -160,3 +160,13 @@ test("Gaussian deblending does not split groups on noise peaks",()=>{
   const d=analyze(simulateAcquisition({...defaults,snr:-16,pfa:.005}));
   assert.equal(d.matchedCount,5);assert.ok(d.falseEvents<=2,"false events "+d.falseEvents);
 });
+test("weak-pulse preset is buried per sample but recovered by the matched filter",()=>{
+  const c=scenarioConfig("weak"),r=simulateAcquisition(c),d=analyze(r),n=r.iq.length/2,fs=c.sampleRate;
+  const median=(a:number[])=>a.sort((x,y)=>x-y)[a.length>>1],clean=simulateAcquisition({...c,snr:40});
+  let peak=0;for(let i=0;i<n;i++)peak=Math.max(peak,powerAt(clean.iq,i));
+  const noise=median(Array.from({length:n},(_,i)=>powerAt(r.iq,i)))/Math.log(2);
+  assert.ok(10*Math.log10(peak/noise)<3,"per-sample peak SNR "+(10*Math.log10(peak/noise)).toFixed(1)+" dB");
+  const mfNoise=Math.sqrt(median(Array.from(d.matched,v=>v*v))/Math.log(2));
+  for(const t of r.truth){const k=Math.round(t.time*fs);let m=0;for(let i=k-3;i<=k+3;i++)m=Math.max(m,d.matched[i]);assert.ok(20*Math.log10(m/mfNoise)>10,t.id);}
+  assert.equal(d.energyEvents.filter(e=>r.truth.some(t=>Math.abs(e-t.time)<2e-9)).length,0);
+});
