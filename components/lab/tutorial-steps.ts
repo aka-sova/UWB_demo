@@ -85,6 +85,8 @@ export const tourSteps:TourStep[]=[
     waitFor:{hint:"Open the Validation tab.",done:s=>s.view==="validation",doIt:a=>a.setView("validation")}},
   {id:"validation-run",target:"validation-run",title:"Measure the receiver",
     body:"Run 16-trial experiment reports detection probability, unmatched events per record, the achieved noise-cell false-alarm rate against the requested CFAR Pfa, and timing RMSE. Results are marked stale when you change a control."},
+  {id:"font-size",target:"font-size",title:"Text size",
+    body:"− and + make every label, reading and plot axis smaller or larger, from 80% to 150%. Click the percentage to return to 100%. Your choice is remembered on this device."},
   {id:"finish",target:"theme",title:"You're ready",
     body:"This button switches between light and dark themes.\n\nNext, pick an experiment from the list and follow its question at the bottom of the receiver view. The Tutorial button replays this tour at any time."},
 ];

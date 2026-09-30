@@ -19,7 +19,7 @@ Node.js 22.13 or newer is required. Install locked dependencies with `npm ci`, t
 
 **Tutorial** (next to Run and Step) gives a guided tour of every section, then a short hands-on experiment; leaving it early restores your workspace. Choose one of eleven presets, adjust controls, and select a receiver stage. The time cursor links waveforms, spectrogram, threshold inspector and reconstruction. Select a pulse-table row to highlight its support. Zoom/pan and **Focus cursor** reveal nanosecond structure. **Run** advances reproducible noise seeds; **Step** generates one record; reset restores the preset. Each physical record lasts 512 ns.
 
-**Graduate detail** exposes CFAR neighborhoods, thresholds, energy detection, residuals and hardware controls. **Bandwidth explorer** demonstrates Fourier scaling and the long-chirp counterexample. **Applications** connects arrival times to ranging, radar, PPM, EW analysis and transient measurement. **Validation** runs sixteen seeded trials of the current configuration. Light/dark themes are supported, with the selected theme saved locally.
+**Graduate detail** exposes CFAR neighborhoods, thresholds, energy detection, residuals and hardware controls. **Bandwidth explorer** demonstrates Fourier scaling and the long-chirp counterexample. **Applications** connects arrival times to ranging, radar, PPM, EW analysis and transient measurement. **Validation** runs sixteen seeded trials of the current configuration. Light/dark themes are supported, and the − / + buttons beside the theme toggle scale all text from 80% to 150%; both choices are saved locally.
 
 ## Pipeline
 

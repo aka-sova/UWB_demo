@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import Link from "next/link";
-import {AudioLines,ChevronRight,Sun,Moon,FlaskConical,Focus,Play,Pause,StepForward,PanelLeftClose,PanelLeftOpen,ZoomIn,ZoomOut,ChevronLeft,GraduationCap} from "lucide-react";
+import {AudioLines,ChevronRight,Sun,Moon,FlaskConical,Focus,Play,Pause,StepForward,PanelLeftClose,PanelLeftOpen,ZoomIn,ZoomOut,ChevronLeft,GraduationCap,Minus,Plus} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Tabs,TabsList,TabsTrigger,TabsContent} from "@/components/ui/tabs";
 import {Config,defaults,Result} from "@/lib/dsp/types";
@@ -16,6 +16,7 @@ import {Toggle} from "./controls";
 import {useLabTools} from "./webmcp";
 import {createDspWorker} from "@/lib/dsp/create-worker";
 import {Tutorial} from "./tutorial";
+import {FONT_SCALE_MAX,FONT_SCALE_MIN,FontScaleContext,parseFontScale,stepFontScale} from "./font-scale";
 import {tourSteps,type TourActions,type TourState} from "./tutorial-steps";
 
 export default function Lab(){
@@ -23,7 +24,7 @@ export default function Lab(){
  const [busy,setBusy]=useState(true),[error,setError]=useState(""),[cursor,setCursor]=useState(64),[domain,setDomain]=useState<[number,number]>([0,512]);
  const [scenario,setScenario]=useState("bandwidth"),[stage,setStage]=useState(4),[view,setView]=useState("receiver"),[advanced,setAdvanced]=useState(false);
  const [maskMode,setMaskMode]=useState<"power"|"mask"|"spots">("power"),[selected,setSelected]=useState<number>(),[representation,setRepresentation]=useState("envelope");
- const [playing,setPlaying]=useState(false),[controlsOpen,setControlsOpen]=useState(true),[touring,setTouring]=useState(false);
+ const [fontScale,setFontScale]=useState(1),[playing,setPlaying]=useState(false),[controlsOpen,setControlsOpen]=useState(true),[touring,setTouring]=useState(false);
  const worker=useRef<Worker|null>(null),job=useRef(0);
  const pending=useRef<{signature:string;resolve:(v:unknown)=>void;reject:(e:Error)=>void}[]>([]);
  const summary=(r:Result)=>({parameters:r.config,pulses:r.detection?.pulses.length,matches:r.detection?.matchedCount,missed:r.detection?.missed,falseEvents:r.detection?.falseEvents,sourceBandwidthHz:r.sourceBandwidth,sourceWidthSeconds:r.sourceWidth,elapsedMs:r.elapsed});
@@ -31,6 +32,8 @@ export default function Lab(){
   // Hydrate browser-only preferences after the server and first client render agree.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   setTheme(localStorage.getItem("uwb-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"));
+  let storedScale:string|null=null;try{storedScale=localStorage.getItem("uwb-font-scale");}catch{}
+  setFontScale(parseFontScale(storedScale));
   if(window.innerWidth<760)setControlsOpen(false);
   const w=createDspWorker();worker.current=w;
   w.onmessage=e=>{
@@ -43,6 +46,7 @@ export default function Lab(){
   return()=>{w.terminate();pending.current.forEach(p=>p.reject(new Error("Laboratory closed")));};
  },[]);
  useEffect(()=>{document.documentElement.classList.toggle("dark",theme==="dark");localStorage.setItem("uwb-theme",theme);},[theme]);
+ useEffect(()=>{document.documentElement.style.setProperty("--font-scale",String(fontScale));try{localStorage.setItem("uwb-font-scale",String(fontScale));}catch{}},[fontScale]);
  useEffect(()=>{
   job.current++;const id=job.current,signature=JSON.stringify(config);
   pending.current=pending.current.filter(p=>{if(p.signature!==signature){p.reject(new Error("Configuration superseded by a newer change"));return false;}return true;});
@@ -87,9 +91,9 @@ export default function Lab(){
  const focus=()=>setDomain(domain[1]-domain[0]<510?[0,512]:[Math.max(0,cursor-10),Math.min(512,cursor+10)]);
  const zoom=(factor:number)=>{const center=(domain[0]+domain[1])/2,width=Math.min(512,Math.max(2,(domain[1]-domain[0])*factor));const left=Math.max(0,Math.min(512-width,center-width/2));setDomain([left,left+width]);};
  const pan=(direction:number)=>{const width=domain[1]-domain[0],left=Math.max(0,Math.min(512-width,domain[0]+direction*width/3));setDomain([left,left+width]);};
- return <div className="lab-shell">
+ return <FontScaleContext.Provider value={fontScale}><div className="lab-shell">
   <header className="topbar"><Link href="/" className="brand"><span className="brand-symbol"><AudioLines size={25}/></span><div><strong>UWB <span>Signal Lab</span></strong><small>INTERACTIVE RECEIVER LABORATORY</small></div></Link>
-   <div className="top-actions"><span className="course-tag">EW / HPM</span><Toggle dataTour="graduate" label="Graduate detail" value={advanced} onChange={setAdvanced}/><Button data-tour="theme" variant="ghost" size="icon" aria-label="Toggle color theme" onClick={()=>setTheme(t=>t==="dark"?"light":"dark")}>{theme==="dark"?<Sun/>:<Moon/>}</Button></div></header>
+   <div className="top-actions"><span className="course-tag">EW / HPM</span><Toggle dataTour="graduate" label="Graduate detail" value={advanced} onChange={setAdvanced}/><div className="font-size-control" role="group" aria-label="Text size" data-tour="font-size"><Button variant="ghost" size="icon-sm" aria-label="Decrease text size" title="Smaller text" disabled={fontScale<=FONT_SCALE_MIN} onClick={()=>setFontScale(s=>stepFontScale(s,-1))}><Minus size={15}/></Button><button type="button" className="font-size-value" title="Reset text size to 100%" aria-live="polite" onClick={()=>setFontScale(1)}>{Math.round(fontScale*100)}%</button><Button variant="ghost" size="icon-sm" aria-label="Increase text size" title="Larger text" disabled={fontScale>=FONT_SCALE_MAX} onClick={()=>setFontScale(s=>stepFontScale(s,1))}><Plus size={15}/></Button></div><Button data-tour="theme" variant="ghost" size="icon" aria-label="Toggle color theme" onClick={()=>setTheme(t=>t==="dark"?"light":"dark")}>{theme==="dark"?<Sun/>:<Moon/>}</Button></div></header>
   <div className="workspace-heading"><div className="breadcrumb"><Button size="icon-sm" variant="ghost" aria-label={controlsOpen?"Hide controls":"Show controls"} onClick={()=>setControlsOpen(!controlsOpen)}>{controlsOpen?<PanelLeftClose size={16}/>:<PanelLeftOpen size={16}/>}</Button><FlaskConical size={16}/><span>Experiments</span><ChevronRight size={14}/><strong>{selectedScenario.name}</strong>{modified&&<span className="modified-tag">Modified</span>}</div><span className="compute-status" aria-live="polite">{busy?"Computing · plots show last result":result?result.elapsed.toFixed(0)+" ms · seed "+result.config.seed:"Ready"}</span></div>
   <div className={"workspace "+(!controlsOpen?"controls-closed":"")}>
    {controlsOpen&&<ControlPanel config={config} change={change} scenario={scenario} onScenario={chooseScenario} reset={()=>chooseScenario(scenario)} advanced={advanced}/>}
@@ -114,5 +118,5 @@ export default function Lab(){
    </main>
   </div>
   {touring&&<Tutorial steps={tourSteps} state={tourState} actions={tourActions} onExit={exitTour}/>}
- </div>;
+ </div></FontScaleContext.Provider>;
 }
