@@ -177,3 +177,34 @@ test("band-limited interpolation reproduces a sampled complex tone between sampl
   let e=0;for(let m=0;m<4*n;m++){e=Math.max(e,Math.abs(y[2*m]-Math.cos(2*Math.PI*k*m/(4*n))),Math.abs(y[2*m+1]-Math.sin(2*Math.PI*k*m/(4*n))));}
   assert.ok(e<1e-9,"max error "+e);
 });
+test("CFAR frequency neighborhood is set in hertz, independent of FFT length",async()=>{
+  const {cfarExtents}=await import("../lib/dsp/detection");
+  const base=simulateAcquisition(defaults);
+  assert.deepEqual(cfarExtents(base.tf,defaults),{timeGuard:2,timeOuter:8,freqGuard:8,freqOuter:11});
+  const fine=simulateAcquisition({...defaults,fftSize:1024});
+  assert.deepEqual(cfarExtents(fine.tf,{...defaults,fftSize:1024}),{timeGuard:2,timeOuter:8,freqGuard:32,freqOuter:45});
+  // A longer FFT must not let the pulse's own spectrum leak into the training cells and split it:
+  // each true pulse stays one spot, with no extra estimates beside it.
+  const d=analyze(fine);assert.equal(d.matchedCount,5);
+  for(const p of d.pulses)if(p.match)assert.equal(p.spotIds.length,1,p.match+" split into spots "+p.spotIds.join(","));
+  const near=d.pulses.filter(p=>!p.match&&fine.truth.some(t=>Math.abs(p.time-t.time)<10e-9));
+  assert.equal(near.length,0,"fragments beside true pulses: "+near.map(p=>(p.time*1e9).toFixed(1)).join(","));
+});
+test("a pulse's time-frequency support is the union of its spots",async()=>{
+  const {pulseSupport}=await import("../lib/dsp/detection");
+  const r=simulateAcquisition(scenarioConfig("overlap")),d=analyze(r);
+  for(const p of d.pulses){
+    const own=d.spots.filter(s=>p.spotIds.includes(s.id)),box=pulseSupport(p,d.spots);
+    assert.deepEqual(box,{start:Math.min(...own.map(s=>s.start)),end:Math.max(...own.map(s=>s.end)),low:Math.min(...own.map(s=>s.low)),high:Math.max(...own.map(s=>s.high))});
+    assert.ok(box.high-box.low<r.tf.frequencies[r.tf.bins-1]-r.tf.frequencies[0],"bounded in frequency");
+  }
+});
+test("pulses that share a support are drawn as one labelled box",async()=>{
+  const {pulseBoxes}=await import("../lib/dsp/detection");
+  const shared=analyze(simulateAcquisition(scenarioConfig("reflectors")));
+  assert.equal(shared.spots.length,1);assert.equal(shared.pulses.length,2);
+  assert.deepEqual(pulseBoxes([1,2],shared.pulses,shared.spots).map(b=>b.ids),[[1,2]]);
+  const separate=analyze(simulateAcquisition(scenarioConfig("overlap"))),ids=separate.pulses.map(p=>p.id);
+  assert.equal(pulseBoxes(ids,separate.pulses,separate.spots).length,new Set(separate.pulses.map(p=>p.spotIds.join(","))).size);
+  assert.deepEqual(pulseBoxes([3,1],separate.pulses,separate.spots).map(b=>b.ids),[[1],[3]]);
+});

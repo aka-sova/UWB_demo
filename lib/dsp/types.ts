@@ -8,6 +8,7 @@ export interface Config {
   limiter: number; recovery: number; antiAlias: boolean; realRF: boolean;
   windowSize: number; fftSize: number; hop: number; window: "hann" | "hamming" | "rectangular";
   detector: "fixed" | "ca" | "os"; thresholdDb: number; pfa: number; training: number; guard: number;
+  freqGuard: number; freqTraining: number;
   minCells: number; mergeGap: number; seed: number; ppm: boolean; slot: number; rejectTones:boolean; searchBack: number;
 }
 export interface TruthEvent { id: string; time: number; source: string; kind: "direct" | "echo"; bit?: number }
@@ -51,6 +52,6 @@ export const defaults: Config = {
   sampleRate: 16e9, rxBandwidth: 6e9, gainDb: 0, fullScale: 1.5, bits: 12,
   limiter: 10, recovery: 0, antiAlias: true, realRF: false,
   windowSize: 128, fftSize: 256, hop: 32, window: "hann",
-  detector: "ca", thresholdDb: 12, pfa: .001, training: 6, guard: 2,
+  detector: "ca", thresholdDb: 12, pfa: .001, training: 6, guard: 2, freqGuard: 500e6, freqTraining: 200e6,
   minCells: 10, mergeGap: 3e-9, seed: 42, ppm: false, slot: 8e-9, rejectTones:true, searchBack: 0,
 };

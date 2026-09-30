@@ -30,7 +30,7 @@ Power colors span −55 to 0 dB relative to the record's peak. Detections are bi
 
 ## Detection
 
-Fixed thresholds use median cell power / ln(2) as an exponential-noise mean estimate. CA-CFAR averages the training rectangle excluding guards, then applies α = N(Pfa^(−1/N)−1). Time guard half-width is G frames; frequency guard is 4G bins. Outer extents add the selected time training width and three frequency bins. Edges truncate neighborhoods.
+Fixed thresholds use median cell power / ln(2) as an exponential-noise mean estimate. CA-CFAR averages the training rectangle excluding guards, then applies α = N(Pfa^(−1/N)−1). Time guard half-width is G frames and the time training width is added outside it. Frequency guard and training widths are set in hertz (defaults 500 and 200 MHz) and rounded to FFT bins, so zero padding does not shrink them into a pulse's own spectrum. Edges truncate neighborhoods.
 
 OS-CFAR uses rank ceil(0.75N); its multiplier solves the independent exponential order-statistic equation. STFT cells are correlated and receiver noise may be nonuniform: nominal Pfa is not an achieved guarantee. Validation uses separate white-noise STFT records, excluding receiver filtering, interference and nonlinearities; this is not full receiver false-alarm calibration.
 

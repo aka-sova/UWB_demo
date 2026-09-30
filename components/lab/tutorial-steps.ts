@@ -58,7 +58,7 @@ export const tourSteps:TourStep[]=[
     body:"Explains the selected stage with its governing equation and live metrics. With Graduate detail on, it adds the modeling assumptions and limitations of that stage."},
   {id:"pulses",target:"pulses",title:"Constructed pulses",
     before:a=>a.clearSelection(),
-    body:"Each row is one estimated pulse event: arrival time, width, peak, centre frequency, bandwidth, candidate train and its match to the ground truth.\n\nSelecting a row moves the cursor to the pulse and outlines its support on the spectrogram.",
+    body:"Each row is one estimated pulse event: arrival time, width, peak, centre frequency, bandwidth, candidate train and its match to the ground truth.\n\nSelecting a row moves the cursor to the pulse and outlines its support on the spectrogram. Tick rows, or press Show all, to draw several boxes at once.",
     waitFor:{hint:"Click any row in the pulse table.",done:s=>s.selected!==undefined,doIt:a=>a.selectFirstPulse()}},
   {id:"branches",target:"branches",title:"Matched filter and reconstruction",
     body:"The matched filter correlates the record with the known pulse shape; it is the optimal detector in white noise and does not use arrival times.\n\nReconstruction rebuilds the waveform from the kept spectrogram cells (masked inverse STFT) and from a fitted pulse template."},

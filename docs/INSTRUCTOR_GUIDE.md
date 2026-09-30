@@ -27,7 +27,7 @@ Begin with the default Gaussian. Focus the cursor, halve σ, and ask students to
 
 ## Recorded ensemble
 
-Sixteen seeds per scenario (42 + 7919j): baseline 80/80 events matched, zero unmatched estimates, 19.1 ps RMSE; two reflectors 32/32 matched with 1 unmatched estimate; weak pulses (buried per sample) 72/80 matched with 8 unmatched estimates and 868 ps STFT-branch RMSE; PPM 96/96 matched with no unmatched estimates. The single-seed PPM regression also checks zero bit errors; ensemble event accounting is not an ensemble BER measurement.
+Sixteen seeds per scenario (42 + 7919j): baseline 80/80 events matched, zero unmatched estimates, 19.1 ps RMSE; two reflectors 32/32 matched with 1 unmatched estimate; weak pulses (buried per sample) 71/80 matched with 8 unmatched estimates and 864 ps STFT-branch RMSE; PPM 96/96 matched with no unmatched estimates. The single-seed PPM regression also checks zero bit errors; ensemble event accounting is not an ensemble BER measurement.
 
 Report configuration, gate, false-event count and sample size alongside these measurements. `validation-results.json` retains exact parameters and timings. Interactive Validation produces new measurements; old results are marked when controls change.
 
