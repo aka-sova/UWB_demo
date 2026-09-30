@@ -95,7 +95,8 @@ export function simulateAcquisition(c: Config): Result {
     for(let i=0;i<n;i++){const phase=2*Math.PI*c.carrier*i/fs;rf[2*i]=front[2*i]*Math.cos(phase)-front[2*i+1]*Math.sin(phase);}
     front=rf;
   }
-  const filtered=c.antiAlias ? lowpass(front,fs,.44*c.sampleRate,95):front;
+  // Passband to 0.38 fs, stopband (≈ −53 dB Hamming) from 0.46 fs, below the 0.5 fs Nyquist edge.
+  const filtered=c.antiAlias ? lowpass(front,fs,.42*c.sampleRate,firTaps(fs,.08*c.sampleRate)):front;
   const step=fs/c.sampleRate, adc=resample(filtered,step), count=adc.length/2;
   const quant=2*c.fullScale/Math.pow(2,c.bits), maxCode=Math.pow(2,c.bits-1)-1, minCode=-Math.pow(2,c.bits-1);
   let clipped=0;

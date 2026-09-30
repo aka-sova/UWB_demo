@@ -120,3 +120,12 @@ test("arrival time of an ADC-clipped pulse is the plateau center, not its first 
   assert.ok(r.clipped>0);assert.equal(d.matchedCount,3);
   assert.ok(d.timingRmse<.1e-9,"timing RMSE "+(d.timingRmse*1e12).toFixed(0)+" ps");
 });
+test("anti-alias filter reaches its stopband before Nyquist and keeps the passband flat",()=>{
+  const base={...defaults,sampleRate:4e9 as const,interference:1,rxBandwidth:8e9,snr:40,amplitude:1e-3};
+  // Exclude 20 ns at each edge, where the zero-extended tone switches on and off.
+  const interior=(x:Float64Array)=>energy(x.subarray(2*80,x.length-2*80),1);
+  const ratio=(offset:number)=>interior(simulateAcquisition({...base,interferenceOffset:offset,antiAlias:true}).iq)/interior(simulateAcquisition({...base,interferenceOffset:offset,antiAlias:false}).iq);
+  const stop=10*Math.log10(ratio(2.1e9)),pass=10*Math.log10(ratio(1.4e9));
+  assert.ok(stop<-40,"2.1 GHz attenuation "+stop.toFixed(1)+" dB");
+  assert.ok(pass>-1,"1.4 GHz attenuation "+pass.toFixed(1)+" dB");
+});
