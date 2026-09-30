@@ -6,7 +6,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "test": "node --import tsx --test tests/numerical.test.ts",
+    "test": "node --import tsx --test tests/numerical.test.ts tests/tutorial.test.ts",
     "typecheck": "tsc --noEmit",
     "validate:dsp": "node --import tsx scripts/validate-dsp.ts",
     "install:ci": "node scripts/install-ci.mjs",

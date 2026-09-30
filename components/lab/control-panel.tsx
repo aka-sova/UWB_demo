@@ -8,11 +8,11 @@ export function ControlPanel({config:c,change,scenario,onScenario,reset,advanced
  config:Config;change:(key:keyof Config,value:Config[keyof Config])=>void;scenario:string;onScenario:(id:string)=>void;reset:()=>void;advanced:boolean;
 }){
  const choices=(values:number[],scale=1,suffix="")=>values.map(v=>({value:String(v*scale),label:v+suffix}));
- return <aside className="control-panel"><div className="panel-title"><SlidersHorizontal size={17}/><h2>Experiment controls</h2><Button variant="ghost" size="icon-sm" aria-label="Reset experiment" onClick={reset}><RotateCcw size={15}/></Button></div>
-  <div className="scenario-picker"><Choice label="Predefined scenario" value={scenario} options={scenarios.map((s,i)=>({value:s.id,label:String(i+1).padStart(2,"0")+" · "+s.name}))} onChange={onScenario}/></div>
+ return <aside className="control-panel" data-tour="controls"><div className="panel-title"><SlidersHorizontal size={17}/><h2>Experiment controls</h2><Button variant="ghost" size="icon-sm" aria-label="Reset experiment" onClick={reset}><RotateCcw size={15}/></Button></div>
+  <div className="scenario-picker" data-tour="scenario"><Choice label="Predefined scenario" value={scenario} options={scenarios.map((s,i)=>({value:s.id,label:String(i+1).padStart(2,"0")+" · "+s.name}))} onChange={onScenario}/></div>
   <section className="control-section"><h3><span>01</span> Waveform</h3>
    <Choice label="Pulse family" value={c.family} options={[{value:"gaussian",label:"Gaussian RF pulse"},{value:"monocycle",label:"Gaussian monocycle"},{value:"doublet",label:"Gaussian doublet"},{value:"chirp",label:"Wideband chirp"}]} onChange={v=>change("family",v as Config["family"])}/>
-   <RangeControl label="Envelope scale σ" value={c.sigma*1e9} min={.15} max={12} step={.05} digits={2} unit="ns" onChange={v=>change("sigma",v*1e-9)}/>
+   <RangeControl dataTour="sigma" label="Envelope scale σ" value={c.sigma*1e9} min={.15} max={12} step={.05} digits={2} unit="ns" onChange={v=>change("sigma",v*1e-9)}/>
    <RangeControl label="Carrier frequency" value={c.carrier/1e9} min={2} max={10} step={.25} digits={2} unit="GHz" onChange={v=>change("carrier",v*1e9)}/>
    <RangeControl label="Pulse amplitude" value={c.amplitude} min={.1} max={6} step={.05} digits={2} unit="V" onChange={v=>change("amplitude",v)}/>
    <Choice label="Comparison basis" value={c.normalization} options={[{value:"peak",label:"Fixed peak amplitude"},{value:"energy",label:"Fixed energy · same shape"}]} onChange={v=>change("normalization",v as Config["normalization"])}/>
