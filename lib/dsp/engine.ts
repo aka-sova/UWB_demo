@@ -57,9 +57,11 @@ export function simulateAcquisition(c: Config): Result {
   for(const e of truth) {
     const scale=e.kind==="echo" ? c.echoGain : e.source==="B" ? .7 : 1;
     const offset=e.source==="B" ? c.secondaryOffset:0;
+    // A path delayed by τ relative to the direct path is a·u(t−τ)·exp(−j2πfcτ) in complex baseband.
+    const carrierPhase=e.kind==="echo" ? -2*Math.PI*c.carrier*c.echoDelay : 0;
     const start=Math.max(0,Math.floor((e.time-7*c.sigma)*fs)), end=Math.min(n,Math.ceil((e.time+7*c.sigma)*fs));
     for(let i=start;i<end;i++) {
-      const t=i/fs-e.time,[pr,pi]=pulseValue(t,c),p=2*Math.PI*offset*t;
+      const t=i/fs-e.time,[pr,pi]=pulseValue(t,c),p=2*Math.PI*offset*t+carrierPhase;
       const re=scale*(pr*Math.cos(p)-pi*Math.sin(p)),im=scale*(pr*Math.sin(p)+pi*Math.cos(p));
       channel[2*i]+=re;channel[2*i+1]+=im;
       if(e.kind==="direct"&&e.source==="A") {source[2*i]+=re;source[2*i+1]+=im;}

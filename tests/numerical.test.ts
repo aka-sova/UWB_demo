@@ -109,3 +109,9 @@ test("limiter with recovery holds overload at the limit and suppresses only late
   const center=Math.round(r.truth[0].time*fs),d=Math.round(1e-9*fs),before=Math.sqrt(powerAt(r.front,center-d)),after=Math.sqrt(powerAt(r.front,center+d));
   assert.ok(after<before,"after "+after.toFixed(3)+" before "+before.toFixed(3));
 });
+test("delayed copies carry the carrier phase exp(-j2π fc τ)",()=>{
+  // fc·τ = 1.5: an equal-amplitude echo arrives in antiphase and cancels midway between arrivals.
+  const c={...defaults,count:1,echoGain:1,echoDelay:.375e-9,carrier:4e9,snr:40},r=simulateAcquisition(c);
+  const mid=Math.round((r.truth[0].time+c.echoDelay/2)*c.sampleRate),v=Math.sqrt(powerAt(r.channel,mid));
+  assert.ok(v<.05*c.amplitude,"midpoint |channel| "+v.toFixed(3)+" V");
+});
