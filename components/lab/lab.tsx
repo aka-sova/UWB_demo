@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import Link from "next/link";
-import {AudioLines,ChevronRight,Sun,Moon,FlaskConical,Focus,Play,Pause,StepForward,PanelLeftClose,PanelLeftOpen,ZoomIn,ZoomOut,ChevronLeft} from "lucide-react";
+import {AudioLines,ChevronRight,Sun,Moon,FlaskConical,Focus,Play,Pause,StepForward,PanelLeftClose,PanelLeftOpen,ZoomIn,ZoomOut,ChevronLeft,GraduationCap} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Tabs,TabsList,TabsTrigger,TabsContent} from "@/components/ui/tabs";
 import {Config,defaults,Result} from "@/lib/dsp/types";
@@ -15,13 +15,15 @@ import {stages} from "./stage-inspector";
 import {Toggle} from "./controls";
 import {useLabTools} from "./webmcp";
 import {createDspWorker} from "@/lib/dsp/create-worker";
+import {Tutorial} from "./tutorial";
+import {tourSteps,type TourActions,type TourState} from "./tutorial-steps";
 
 export default function Lab(){
  const [config,setConfig]=useState<Config>(defaults),[result,setResult]=useState<Result>(),[theme,setTheme]=useState("dark");
  const [busy,setBusy]=useState(true),[error,setError]=useState(""),[cursor,setCursor]=useState(64),[domain,setDomain]=useState<[number,number]>([0,512]);
  const [scenario,setScenario]=useState("bandwidth"),[stage,setStage]=useState(4),[view,setView]=useState("receiver"),[advanced,setAdvanced]=useState(false);
  const [maskMode,setMaskMode]=useState<"power"|"mask"|"spots">("power"),[selected,setSelected]=useState<number>(),[representation,setRepresentation]=useState("envelope");
- const [playing,setPlaying]=useState(false),[controlsOpen,setControlsOpen]=useState(true);
+ const [playing,setPlaying]=useState(false),[controlsOpen,setControlsOpen]=useState(true),[touring,setTouring]=useState(false);
  const worker=useRef<Worker|null>(null),job=useRef(0);
  const pending=useRef<{signature:string;resolve:(v:unknown)=>void;reject:(e:Error)=>void}[]>([]);
  const summary=(r:Result)=>({parameters:r.config,pulses:r.detection?.pulses.length,matches:r.detection?.matchedCount,missed:r.detection?.missed,falseEvents:r.detection?.falseEvents,sourceBandwidthHz:r.sourceBandwidth,sourceWidthSeconds:r.sourceWidth,elapsedMs:r.elapsed});
@@ -68,6 +70,18 @@ export default function Lab(){
   },
   select:async id=>{const next=chooseScenario(id);return awaitConfig(next);}
  });
+ // Guided tour: remember the workspace, start from experiment 01, and restore it if the tour is left early.
+ const tourSnapshot=useRef<{scenario:string;config:Config;view:string;stage:number;maskMode:"power"|"mask"|"spots";advanced:boolean;controlsOpen:boolean;domain:[number,number];cursor:number}|null>(null);
+ const startTour=()=>{tourSnapshot.current={scenario,config,view,stage,maskMode,advanced,controlsOpen,domain,cursor};chooseScenario("bandwidth");setTouring(true);};
+ const exitTour=(finished:boolean)=>{
+  setTouring(false);const s=tourSnapshot.current;tourSnapshot.current=null;if(finished||!s)return;
+  setScenario(s.scenario);setConfig(s.config);setView(s.view);setStage(s.stage);setMaskMode(s.maskMode);setAdvanced(s.advanced);
+  setControlsOpen(s.controlsOpen);setDomain(s.domain);setCursor(s.cursor);setSelected(undefined);
+ };
+ const tourState:TourState={view,stage,maskMode,advanced,controlsOpen,sigma:config.sigma,selected,firstPulse:result?.detection?.pulses[0]?.id,zoomed:domain[1]-domain[0]<510};
+ const tourActions:TourActions={setView,setStage,setMaskMode,setAdvanced,setControlsOpen,change,
+  selectFirstPulse:()=>{const p=result?.detection?.pulses[0];if(p){setSelected(p.id);setCursor(p.time*1e9);}},clearSelection:()=>setSelected(undefined),
+  focusCursor:()=>setDomain([Math.max(0,cursor-10),Math.min(512,cursor+10)]),resetView:()=>setDomain([0,512])};
  const selectedScenario=scenarios.find(s=>s.id===scenario)!;
  const modified=JSON.stringify(config)!==JSON.stringify(scenarioConfig(scenario));
  const focus=()=>setDomain(domain[1]-domain[0]<510?[0,512]:[Math.max(0,cursor-10),Math.min(512,cursor+10)]);
@@ -75,18 +89,18 @@ export default function Lab(){
  const pan=(direction:number)=>{const width=domain[1]-domain[0],left=Math.max(0,Math.min(512-width,domain[0]+direction*width/3));setDomain([left,left+width]);};
  return <div className="lab-shell">
   <header className="topbar"><Link href="/" className="brand"><span className="brand-symbol"><AudioLines size={25}/></span><div><strong>UWB <span>Signal Lab</span></strong><small>INTERACTIVE RECEIVER LABORATORY</small></div></Link>
-   <div className="top-actions"><span className="course-tag">EW / HPM</span><Toggle label="Graduate detail" value={advanced} onChange={setAdvanced}/><Button variant="ghost" size="icon" aria-label="Toggle color theme" onClick={()=>setTheme(t=>t==="dark"?"light":"dark")}>{theme==="dark"?<Sun/>:<Moon/>}</Button></div></header>
+   <div className="top-actions"><span className="course-tag">EW / HPM</span><Toggle dataTour="graduate" label="Graduate detail" value={advanced} onChange={setAdvanced}/><Button data-tour="theme" variant="ghost" size="icon" aria-label="Toggle color theme" onClick={()=>setTheme(t=>t==="dark"?"light":"dark")}>{theme==="dark"?<Sun/>:<Moon/>}</Button></div></header>
   <div className="workspace-heading"><div className="breadcrumb"><Button size="icon-sm" variant="ghost" aria-label={controlsOpen?"Hide controls":"Show controls"} onClick={()=>setControlsOpen(!controlsOpen)}>{controlsOpen?<PanelLeftClose size={16}/>:<PanelLeftOpen size={16}/>}</Button><FlaskConical size={16}/><span>Experiments</span><ChevronRight size={14}/><strong>{selectedScenario.name}</strong>{modified&&<span className="modified-tag">Modified</span>}</div><span className="compute-status" aria-live="polite">{busy?"Computing · plots show last result":result?result.elapsed.toFixed(0)+" ms · seed "+result.config.seed:"Ready"}</span></div>
   <div className={"workspace "+(!controlsOpen?"controls-closed":"")}>
    {controlsOpen&&<ControlPanel config={config} change={change} scenario={scenario} onScenario={chooseScenario} reset={()=>chooseScenario(scenario)} advanced={advanced}/>}
    <main className="lab-main">
-    <div className="experiment-intro"><div><p className="eyebrow">EXPERIMENT {String(scenarios.indexOf(selectedScenario)+1).padStart(2,"0")} / {String(scenarios.length).padStart(2,"0")}</p><h1>{selectedScenario.title}</h1><p>{selectedScenario.description}</p></div><div className="transport"><Button variant={playing?"secondary":"default"} onClick={()=>setPlaying(!playing)}>{playing?<Pause size={15}/>:<Play size={15}/>} {playing?"Pause":"Run"}</Button><Button variant="outline" aria-label="Step one noise realization" disabled={busy} onClick={()=>{setPlaying(false);setConfig(c=>({...c,seed:(c.seed+1)>>>0}));}}><StepForward size={15}/><span>Step</span></Button></div></div>
-    <Tabs value={view} onValueChange={setView} className="main-tabs"><TabsList variant="line"><TabsTrigger value="receiver">Receiver laboratory</TabsTrigger><TabsTrigger value="bandwidth">Bandwidth explorer</TabsTrigger><TabsTrigger value="applications">Applications</TabsTrigger><TabsTrigger value="validation">Validation</TabsTrigger></TabsList>
+    <div className="experiment-intro" data-tour="experiment"><div><p className="eyebrow">EXPERIMENT {String(scenarios.indexOf(selectedScenario)+1).padStart(2,"0")} / {String(scenarios.length).padStart(2,"0")}</p><h1>{selectedScenario.title}</h1><p>{selectedScenario.description}</p></div><div className="transport"><Button variant={playing?"secondary":"default"} onClick={()=>setPlaying(!playing)}>{playing?<Pause size={15}/>:<Play size={15}/>} {playing?"Pause":"Run"}</Button><Button variant="outline" aria-label="Step one noise realization" disabled={busy} onClick={()=>{setPlaying(false);setConfig(c=>({...c,seed:(c.seed+1)>>>0}));}}><StepForward size={15}/><span>Step</span></Button><Button variant="outline" aria-label="Start the guided tutorial" onClick={startTour}><GraduationCap size={15}/><span>Tutorial</span></Button></div></div>
+    <Tabs value={view} onValueChange={setView} className="main-tabs"><TabsList variant="line" data-tour="tabs"><TabsTrigger value="receiver">Receiver laboratory</TabsTrigger><TabsTrigger value="bandwidth">Bandwidth explorer</TabsTrigger><TabsTrigger value="applications">Applications</TabsTrigger><TabsTrigger value="validation">Validation</TabsTrigger></TabsList>
      {error&&<div role="alert" className="error-box">{error}</div>}
      {result&&result.detection?<>
       <TabsContent value="receiver">
-       <nav className="pipeline" aria-label="Receiver stages">{stages.map((s,i)=><button className={"stage "+(stage===i?"active":"")} key={s.name} aria-pressed={stage===i} onClick={()=>{setStage(i);if(i===5)setMaskMode("mask");if(i===6)setMaskMode("spots");}}><span>{String(i+1).padStart(2,"0")}</span><strong>{s.name}</strong>{i<6&&<ChevronRight size={14}/>}</button>)}</nav>
-       <div className="plot-toolbar"><span>Cursor <b>{cursor.toFixed(3)} ns</b> · view {domain[0].toFixed(1)}–{domain[1].toFixed(1)} ns</span><div><Button variant="ghost" size="icon-sm" aria-label="Pan earlier" onClick={()=>pan(-1)}><ChevronLeft/></Button><Button variant="ghost" size="icon-sm" aria-label="Pan later" onClick={()=>pan(1)}><ChevronRight/></Button><Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={()=>zoom(.5)}><ZoomIn/></Button><Button variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={()=>zoom(2)}><ZoomOut/></Button><Button variant="outline" size="sm" onClick={focus}><Focus size={14}/>{domain[1]-domain[0]<510?"Full record":"Focus cursor"}</Button></div></div>
+       <nav className="pipeline" aria-label="Receiver stages" data-tour="pipeline">{stages.map((s,i)=><button className={"stage "+(stage===i?"active":"")} key={s.name} aria-pressed={stage===i} onClick={()=>{setStage(i);if(i===5)setMaskMode("mask");if(i===6)setMaskMode("spots");}}><span>{String(i+1).padStart(2,"0")}</span><strong>{s.name}</strong>{i<6&&<ChevronRight size={14}/>}</button>)}</nav>
+       <div className="plot-toolbar" data-tour="plot-toolbar"><span>Cursor <b>{cursor.toFixed(3)} ns</b> · view {domain[0].toFixed(1)}–{domain[1].toFixed(1)} ns</span><div><Button variant="ghost" size="icon-sm" aria-label="Pan earlier" onClick={()=>pan(-1)}><ChevronLeft/></Button><Button variant="ghost" size="icon-sm" aria-label="Pan later" onClick={()=>pan(1)}><ChevronRight/></Button><Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={()=>zoom(.5)}><ZoomIn/></Button><Button variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={()=>zoom(2)}><ZoomOut/></Button><Button variant="outline" size="sm" onClick={focus}><Focus size={14}/>{domain[1]-domain[0]<510?"Full record":"Focus cursor"}</Button></div></div>
        <ReceiverView r={result} stage={stage} advanced={advanced} theme={theme} domain={domain} cursor={cursor} setCursor={setCursor} selected={selected} setSelected={setSelected} maskMode={maskMode} setMaskMode={setMaskMode} representation={representation} setRepresentation={setRepresentation}/>
        <section className="insight-strip"><span className="insight-icon">∿</span><div><h2>{selectedScenario.question}</h2><p>{selectedScenario.observation}</p></div></section>
        {config.ppm&&<div className="ppm-prompt"><span>Decoded symbols: <b>{result.detection.ppm.decoded.join(" ")}</b> · {result.detection.ppm.errors} errors</span><Button variant="outline" size="sm" onClick={()=>setView("applications")}>Inspect symbol decisions</Button></div>}
@@ -99,5 +113,6 @@ export default function Lab(){
     <footer className="lab-footer"><span>512 ns record · {result?.time.length??"—"} samples · SI units</span><span>Run advances noise realizations; physical time is shown on the axes.</span></footer>
    </main>
   </div>
+  {touring&&<Tutorial steps={tourSteps} state={tourState} actions={tourActions} onExit={exitTour}/>}
  </div>;
 }
