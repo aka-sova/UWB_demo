@@ -55,6 +55,7 @@ export function ControlPanel({config:c,change,scenario,onScenario,reset,advanced
    {c.detector!=="fixed"&&(advanced||c.snr<0)&&<RangeControl label="Energy-branch threshold" value={c.thresholdDb} min={3} max={30} digits={0} unit="dB" onChange={v=>change("thresholdDb",v)} hint="Above the rolling-energy median; independent of CFAR."/>}
    <RangeControl label="Minimum spot area" value={c.minCells} min={1} max={40} digits={0} unit="cells" onChange={v=>change("minCells",v)}/>
    <RangeControl label="Fragment joining gap" value={c.mergeGap*1e9} min={0} max={12} step={.25} digits={2} unit="ns" onChange={v=>change("mergeGap",v*1e-9)}/>
+   <RangeControl label="First-arrival search-back" value={c.searchBack*1e9} min={0} max={30} step={1} digits={0} unit="ns" onChange={v=>change("searchBack",v*1e-9)} hint={"Before each group’s strongest peak, look this far back for an earlier local maximum "+c.thresholdDb.toFixed(0)+" dB above record noise. 0 disables."}/>
    <Toggle label="Reject persistent tones" value={c.rejectTones} onChange={v=>change("rejectTones",v)}/>
    <p className="control-hint">Tone rejection excludes frequency bins detected in more than 60% of frames before spot grouping.</p>
   </section>

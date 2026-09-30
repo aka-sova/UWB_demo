@@ -29,7 +29,13 @@ export function random(seed: number) {
   };
   return {uniform, normal: () => Math.sqrt(-2*Math.log(Math.max(1e-12,uniform()))) * Math.cos(2*Math.PI*uniform())};
 }
+// Odd Hamming-windowed-sinc length whose transition band (≈3.3 fs/N) is at most `transition`.
+export function firTaps(fs: number, transition: number, min = 63, max = 4095) {
+  const n=Math.ceil(3.3*fs/Math.max(transition,1)), odd=n%2 ? n : n+1;
+  return Math.min(max,Math.max(min,odd));
+}
 // Symmetric FIR evaluated offline with group-delay compensation and zero extension.
+// Linear convolution is computed by FFT so long filters remain inexpensive.
 export function lowpass(x: Float64Array, fs: number, cutoff: number, taps = 63) {
   const n=x.length/2, m=(taps-1)/2, h=new Float64Array(taps);
   const ratio=Math.min(.49,cutoff/fs); let sum=0;
@@ -38,13 +44,12 @@ export function lowpass(x: Float64Array, fs: number, cutoff: number, taps = 63) 
     h[k]=(d===0 ? 2*ratio : Math.sin(2*Math.PI*ratio*d)/(Math.PI*d))*(.54-.46*Math.cos(2*Math.PI*k/(taps-1)));
     sum+=h[k];
   }
-  for(let k=0;k<taps;k++) h[k]/=sum;
-  const y=new Float64Array(x.length);
-  for(let i=0;i<n;i++) {
-    let re=0,im=0;
-    for(let k=0;k<taps;k++) { const j=i+k-m; if(j>=0&&j<n) {re+=h[k]*x[2*j]; im+=h[k]*x[2*j+1];} }
-    y[2*i]=re; y[2*i+1]=im;
-  }
+  const size=2**Math.ceil(Math.log2(n+taps-1)), a=new Float64Array(size*2), b=new Float64Array(size*2);
+  a.set(x); for(let k=0;k<taps;k++) b[2*k]=h[k]/sum;
+  const A=fft(a), B=fft(b);
+  for(let k=0;k<size;k++) {const ar=A[2*k],ai=A[2*k+1];A[2*k]=ar*B[2*k]-ai*B[2*k+1];A[2*k+1]=ar*B[2*k+1]+ai*B[2*k];}
+  const z=fft(A,true), y=new Float64Array(x.length);
+  for(let i=0;i<n;i++) {y[2*i]=z[2*(i+m)]; y[2*i+1]=z[2*(i+m)+1];}
   return y;
 }
 export function resample(x: Float64Array, step: number) {
@@ -69,4 +74,14 @@ export function spectrum(x: Float64Array, fs: number, type = "hann") {
   const f=fft(work), frequency=new Float64Array(n),psd=new Float64Array(n);
   for(let i=0;i<n;i++) {const k=(i+n/2)%n;frequency[i]=(i-n/2)*fs/n;psd[i]=powerAt(f,k)/(fs*ww);}
   return {frequency,psd};
+}
+// Band-limited (periodic, FFT zero-padding) interpolation of complex samples by an integer
+// power-of-two factor. Display only: it cannot restore bandwidth lost at sampling.
+export function interpolate(x: Float64Array, factor: number) {
+  const n=x.length/2, m=n*factor, X=fft(x), Y=new Float64Array(m*2);
+  for(let k=0;k<n/2;k++) {Y[2*k]=X[2*k]*factor;Y[2*k+1]=X[2*k+1]*factor;}
+  for(let k=n/2+1;k<n;k++) {const j=m-(n-k);Y[2*j]=X[2*k]*factor;Y[2*j+1]=X[2*k+1]*factor;}
+  // Split the Nyquist bin between the positive and negative edges.
+  const h=n/2;Y[2*h]=X[2*h]*factor/2;Y[2*h+1]=X[2*h+1]*factor/2;Y[2*(m-h)]=X[2*h]*factor/2;Y[2*(m-h)+1]=X[2*h+1]*factor/2;
+  return fft(Y,true);
 }

@@ -1,5 +1,5 @@
 import {Config, Result, TimeFrequency, TruthEvent, DURATION, REFERENCE_RATE} from "./types";
-import {energy, fft, halfPowerWidth, lowpass, powerAt, random, resample, spectrum, windowValues} from "./numeric";
+import {energy, fft, firTaps, halfPowerWidth, lowpass, powerAt, random, resample, spectrum, windowValues} from "./numeric";
 
 export function pulseValue(t: number, c: Config): [number,number] {
   const u=t/c.sigma;
@@ -10,6 +10,14 @@ export function pulseValue(t: number, c: Config): [number,number] {
   const phase=c.family==="chirp" ? Math.PI*c.chirpBandwidth/(2*c.sigma*Math.sqrt(Math.log(10)))*t*t : 0;
   const norm=c.normalization==="energy" ? Math.sqrt(.6e-9/c.sigma) : 1;
   return [c.amplitude*norm*value*Math.cos(phase),c.amplitude*norm*value*Math.sin(phase)];
+}
+// Nominal (early-slot) time of symbol j. A symbol is generated, and decoded, only when its
+// latest possible slot lies at least 20 ns before the record end.
+export const nominalTime=(j:number,c:Config)=>(c.count===1 ? 200e-9 : 64e-9)+j*c.pri;
+export const symbolFits=(j:number,c:Config)=>nominalTime(j,c)+(c.ppm ? c.slot:0)<=DURATION-20e-9;
+// Offset of the DDC's 2fc mixing product after aliasing into [−fs/2, fs/2).
+export function ddcImage(carrier: number, fs: number) {
+  const f=-2*carrier;return f-fs*Math.round(f/fs);
 }
 export function stft(x: Float64Array, c: Config): TimeFrequency {
   const n=x.length/2, L=c.windowSize, F=Math.max(c.fftSize,L), hop=Math.min(c.hop,L/2);
@@ -38,11 +46,11 @@ export function stft(x: Float64Array, c: Config): TimeFrequency {
 export function simulateAcquisition(c: Config): Result {
   const started=performance.now(), fs=REFERENCE_RATE, n=Math.round(DURATION*fs), rng=random(c.seed);
   const truth:TruthEvent[]=[], source=new Float64Array(n*2), channel=new Float64Array(n*2);
-  const first=c.count===1 ? 200e-9 : 64e-9;
+  const first=nominalTime(0,c);
   for(let j=0;j<c.count;j++) {
     const bit=c.ppm ? (random(c.seed+500+j).uniform()>.5 ? 1:0) : undefined;
-    const t=first+j*c.pri+(bit ? c.slot:0)+c.jitter*rng.normal();
-    if(t> DURATION-20e-9) continue;
+    const t=nominalTime(j,c)+(bit ? c.slot:0)+c.jitter*rng.normal();
+    if(!symbolFits(j,c)) continue;
     truth.push({id:"A"+(j+1),time:t,source:"A",kind:"direct",bit});
     if(c.echoGain>0 && t+c.echoDelay<DURATION) truth.push({id:"E"+(j+1),time:t+c.echoDelay,source:"A",kind:"echo"});
     if(c.secondary) {
@@ -53,9 +61,11 @@ export function simulateAcquisition(c: Config): Result {
   for(const e of truth) {
     const scale=e.kind==="echo" ? c.echoGain : e.source==="B" ? .7 : 1;
     const offset=e.source==="B" ? c.secondaryOffset:0;
+    // A path delayed by τ relative to the direct path is a·u(t−τ)·exp(−j2πfcτ) in complex baseband.
+    const carrierPhase=e.kind==="echo" ? -2*Math.PI*c.carrier*c.echoDelay : 0;
     const start=Math.max(0,Math.floor((e.time-7*c.sigma)*fs)), end=Math.min(n,Math.ceil((e.time+7*c.sigma)*fs));
     for(let i=start;i<end;i++) {
-      const t=i/fs-e.time,[pr,pi]=pulseValue(t,c),p=2*Math.PI*offset*t;
+      const t=i/fs-e.time,[pr,pi]=pulseValue(t,c),p=2*Math.PI*offset*t+carrierPhase;
       const re=scale*(pr*Math.cos(p)-pi*Math.sin(p)),im=scale*(pr*Math.sin(p)+pi*Math.cos(p));
       channel[2*i]+=re;channel[2*i+1]+=im;
       if(e.kind==="direct"&&e.source==="A") {source[2*i]+=re;source[2*i+1]+=im;}
@@ -68,16 +78,20 @@ export function simulateAcquisition(c: Config): Result {
     channel[2*i]+=sd*rng.normal()+c.interference*Math.cos(phase);
     channel[2*i+1]+=sd*rng.normal()+c.interference*Math.sin(phase);
   }
-  let front=lowpass(channel,fs,c.rxBandwidth/2);
+  // Transition width scales with the passband so narrow receiver settings stay accurate.
+  let front=lowpass(channel,fs,c.rxBandwidth/2,firTaps(fs,c.rxBandwidth/4));
   const gain=Math.pow(10,c.gainDb/20);
   let recovery=1;
   const recoverAlpha=c.recovery>0 ? 1-Math.exp(-1/(fs*c.recovery)):1;
   for(let i=0;i<n;i++) {
+    // Overload lowers a gain state that recovers exponentially; the radial limiter then clips
+    // the suppressed drive, so overload holds the limit instead of folding back below it.
     const magnitude=Math.sqrt(powerAt(front,i))*gain;
     if(c.recovery===0) recovery=1;
     else if(magnitude>c.limiter) recovery=Math.min(recovery,c.limiter/magnitude);
     else recovery+=(1-recovery)*recoverAlpha;
-    const scale=gain*Math.min(1,c.limiter/Math.max(magnitude,1e-30))*recovery;
+    const drive=magnitude*recovery;
+    const scale=gain*recovery*Math.min(1,c.limiter/Math.max(drive,1e-30));
     front[2*i]*=scale;front[2*i+1]*=scale;
   }
   if(c.realRF) {
@@ -85,7 +99,8 @@ export function simulateAcquisition(c: Config): Result {
     for(let i=0;i<n;i++){const phase=2*Math.PI*c.carrier*i/fs;rf[2*i]=front[2*i]*Math.cos(phase)-front[2*i+1]*Math.sin(phase);}
     front=rf;
   }
-  const filtered=c.antiAlias ? lowpass(front,fs,.44*c.sampleRate,95):front;
+  // Passband to 0.38 fs, stopband (≈ −53 dB Hamming) from 0.46 fs, below the 0.5 fs Nyquist edge.
+  const filtered=c.antiAlias ? lowpass(front,fs,.42*c.sampleRate,firTaps(fs,.08*c.sampleRate)):front;
   const step=fs/c.sampleRate, adc=resample(filtered,step), count=adc.length/2;
   const quant=2*c.fullScale/Math.pow(2,c.bits), maxCode=Math.pow(2,c.bits-1)-1, minCode=-Math.pow(2,c.bits-1);
   let clipped=0;
@@ -96,7 +111,9 @@ export function simulateAcquisition(c: Config): Result {
   let iq:Float64Array=new Float64Array(adc);
   if(c.realRF) {
     for(let i=0;i<count;i++){const phase=2*Math.PI*c.carrier*i/c.sampleRate; iq[2*i]=2*adc[2*i]*Math.cos(phase);iq[2*i+1]=-2*adc[2*i]*Math.sin(phase);}
-    iq=lowpass(iq,c.sampleRate,Math.min(c.rxBandwidth/2,.35*c.sampleRate));
+    // The mixer's 2fc product aliases to wrap(−2fc); keep the low-pass cutoff halfway to it.
+    const image=Math.abs(ddcImage(c.carrier,c.sampleRate));
+    iq=lowpass(iq,c.sampleRate,Math.max(c.sampleRate/128,Math.min(c.rxBandwidth/2,.35*c.sampleRate,image/2)));
   }
   const isolated=new Float64Array(n*2);
   let peak=0;

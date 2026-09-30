@@ -1,6 +1,6 @@
 import type {Config,Detection,Pulse,Result,Spot,TimeFrequency,TruthEvent} from "./types";
 import {db,fft,halfPowerWidth,powerAt,spectrum} from "./numeric";
-import {pulseValue} from "./engine";
+import {nominalTime,pulseValue,symbolFits} from "./engine";
 
 function integral(values:Float64Array,rows:number,cols:number){
   const out=new Float64Array((rows+1)*(cols+1));
@@ -62,7 +62,7 @@ export function connectedSpots(tf:TimeFrequency,mask:Uint8Array,minCells:number)
   }
   return spots;
 }
-export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:Config):Pulse[]{
+export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:Config,matched?:Float64Array):Pulse[]{
   const groups:Spot[][]=[];
   for(const s of [...spots].sort((a,b)=>a.start-b.start)){
     const found=groups.find(g=>{
@@ -74,6 +74,12 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
   const pulses:Pulse[]=[],fs=c.sampleRate,n=iq.length/2;
   const recordPowers=Array.from({length:n},(_,i)=>powerAt(iq,i)).sort((a,b)=>a-b);
   const recordNoise=recordPowers[Math.floor(n/2)]/Math.log(2);
+  const step=2*c.fullScale/2**c.bits,top=(2**(c.bits-1)-1)*step-step/2,bottom=-c.fullScale+step/2;
+  const onRail=(k:number)=>!c.realRF&&(iq[2*k]>=top||iq[2*k]<=bottom||iq[2*k+1]>=top||iq[2*k+1]<=bottom);
+  const smooth=(i:number)=>(powerAt(iq,i-1)+2*powerAt(iq,i)+powerAt(iq,i+1))/4;
+  // Extra peaks (deblending, first arrival) must exceed the energy threshold over record noise.
+  const significant=recordNoise*10**(c.thresholdDb/10);
+  let lastPeak=-Infinity,lastWidth=0;
   for(const group of groups){
     const start=Math.max(0,Math.min(...group.map(s=>s.start))-tf.windowDuration/2);
     const end=Math.min(n/fs,Math.max(...group.map(s=>s.end))+tf.windowDuration/2);
@@ -84,9 +90,8 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
     // valley falls below half of the weaker peak. No source event times are used.
     if(c.family==="gaussian"){
       const candidates:number[]=[];
-      const smooth=(i:number)=>(powerAt(iq,i-1)+2*powerAt(iq,i)+powerAt(iq,i+1))/4;
       for(let i=Math.max(2,Math.floor(start*fs));i<Math.min(n-2,Math.ceil(end*fs));i++)
-        if(smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)&&smooth(i)>.15*smooth(peak))candidates.push(i);
+        if(smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)&&smooth(i)>.15*smooth(peak)&&smooth(i)>significant)candidates.push(i);
       candidates.sort((a,b)=>smooth(b)-smooth(a));
       for(const candidate of candidates){
         if(peaks.length>=16)break;
@@ -94,10 +99,27 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
         if(separate)peaks.push(candidate);
       }
     }
+    // First-arrival search: CFAR training around a strong arrival can mask an earlier, weaker
+    // path. Look back for the earliest local maximum above the energy threshold over record noise.
+    let firstPath=-1;
+    if(c.searchBack>0){
+      const earliest=Math.min(...peaks),w=halfPowerWidth(iq,peaks[0],fs);
+      const from=Math.max(2,Math.floor((earliest/fs-c.searchBack)*fs),Math.ceil(lastPeak+3*lastWidth*fs)),to=earliest-Math.ceil(3*w*fs);
+      for(let i=from;i<to;i++)if(smooth(i)>significant&&smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)){firstPath=i;peaks.push(i);break;}
+    }
     for(const refined of peaks.sort((a,b)=>a-b)){
     peak=refined;
     const p0=powerAt(iq,Math.max(0,peak-1)),p1=powerAt(iq,peak),p2=powerAt(iq,Math.min(n-1,peak+1));
-    const delta=Math.max(-.5,Math.min(.5,.5*(p0-p2)/(p0-2*p1+p2||1))),time=(peak+delta)/fs;
+    let time=(peak+Math.max(-.5,Math.min(.5,.5*(p0-p2)/(p0-2*p1+p2||1))))/fs;
+    // A peak on the ADC rails is a flat plateau: its first sample is not the arrival time.
+    if(matched&&c.family!=="gaussian"){
+      // Derivative pulses peak on a lobe (±σ) and chirps have long envelopes: time the arrival
+      // from the known-template correlation, which peaks at the pulse center.
+      const radius=Math.ceil(2*c.sigma*fs);let m=Math.max(1,peak-radius);
+      for(let i=m+1;i<=Math.min(n-2,peak+radius);i++)if(matched[i]>matched[m])m=i;
+      const m0=matched[m-1],m1=matched[m],m2=matched[m+1];
+      time=(m+Math.max(-.5,Math.min(.5,.5*(m0-m2)/(m0-2*m1+m2||1))))/fs;
+    }else if(onRail(peak)){let l=peak,r=peak;while(l>0&&onRail(l-1))l--;while(r<n-1&&onRail(r+1))r++;time=(l+r)/2/fs;}
     const width=halfPowerWidth(iq,peak,fs),localSize=Math.min(2048,Math.max(256,2**Math.ceil(Math.log2(width*fs*8))));
     const local=new Float64Array(localSize*2),left=peak-localSize/2;
     let pulseEnergy=0,clipped=false;
@@ -108,12 +130,17 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
     const edge:number[]=[];
     for(let i=Math.max(0,Math.floor(start*fs));i<Math.min(n,Math.ceil(end*fs));i++)if(Math.abs(i-peak)>3*width*fs)edge.push(powerAt(iq,i));
     edge.sort((a,b)=>a-b);const noise=edge.length?edge[Math.floor(edge.length/2)]/Math.log(2):recordNoise;
-    pulses.push({id:pulses.length+1,time,width,amplitude:Math.sqrt(p1),energy:pulseEnergy,frequency:c.carrier+weighted/Math.max(weight,1e-30),bandwidth:high-low,snr:db(p1/Math.max(1e-30,noise)),spotIds:group.map(v=>v.id),start,end,clipped,train:0});
+    pulses.push({id:pulses.length+1,time,width,amplitude:Math.sqrt(p1),energy:pulseEnergy,frequency:c.carrier+weighted/Math.max(weight,1e-30),bandwidth:high-low,snr:db(p1/Math.max(1e-30,noise)),spotIds:group.map(v=>v.id),start,end,clipped,train:0,firstPath:refined===firstPath||undefined});
+    if(refined>lastPeak){lastPeak=refined;lastWidth=width;}
     }
   }
   // Frequency-consistent candidate trains. This heuristic deliberately exposes ambiguous merges.
   const trainCenters:number[]=[];
   for(const p of pulses){let train=trainCenters.findIndex(f=>Math.abs(f-p.frequency)<Math.max(.15e9,p.bandwidth*.25));if(train<0){train=trainCenters.length;trainCenters.push(p.frequency);}p.train=train+1;}
+  // Number trains by membership (ties by first appearance) so train 1 is the dominant candidate.
+  const counts=trainCenters.map((_,i)=>pulses.filter(p=>p.train===i+1).length);
+  const order=counts.map((_,i)=>i).sort((a,b)=>counts[b]-counts[a]||a-b),label=new Map(order.map((t,i)=>[t+1,i+1]));
+  for(const p of pulses)p.train=label.get(p.train)!;
   return pulses;
 }
 export function inverseSTFT(tf:TimeFrequency,c:Config,n:number,mask?:Uint8Array){
@@ -169,11 +196,11 @@ export function analyze(r:Result):Detection{
     let occupied=0;for(let t=0;t<r.tf.frames;t++)occupied+=candidateMask[t*r.tf.bins+f];
     if(occupied/r.tf.frames>.6)for(let t=0;t<r.tf.frames;t++)candidateMask[t*r.tf.bins+f]=0;
   }
-  const spots=connectedSpots(r.tf,candidateMask,c.minCells),pulses=assemblePulses(r.tf,spots,r.iq,c);
+  const matched=matchedFilter(r.iq,c),spots=connectedSpots(r.tf,candidateMask,c.minCells),pulses=assemblePulses(r.tf,spots,r.iq,c,matched);
   // Only retained components contribute to the reconstruction mask.
   const cleanMask=new Uint8Array(det.mask.length);for(const s of spots)for(const k of s.cells)cleanMask[k]=1;
   const recovered=inverseSTFT(r.tf,c,r.time.length,cleanMask),unmasked=inverseSTFT(r.tf,c,r.time.length);
-  const fitted=templateFit(r.iq,pulses,c),matched=matchedFilter(r.iq,c);
+  const fitted=templateFit(r.iq,pulses,c);
   let mse=0,roundTrip=0,total=0;
   for(let i=0;i<r.iq.length;i++){mse+=(r.iq[i]-recovered[i])**2;roundTrip+=(r.iq[i]-unmasked[i])**2;total+=r.iq[i]**2;}
   const energyTrace=new Float64Array(r.time.length),span=Math.max(1,Math.round(c.sigma*c.sampleRate));let rolling=0;
@@ -190,7 +217,7 @@ export function analyze(r:Result):Detection{
   const priJitter=intervals.length?Math.sqrt(intervals.reduce((s,t)=>s+(t-pri)**2,0)/intervals.length):NaN;
   const expected:number[]=[],decoded:number[]=[],early:number[]=[],late:number[]=[];
   if(c.ppm)for(let j=0;j<c.count;j++){
-    const nominal=(c.count===1?200e-9:64e-9)+j*c.pri;if(nominal+c.slot>=512e-9)continue;
+    if(!symbolFits(j,c))continue;const nominal=nominalTime(j,c);
     const score=(t:number)=>{let v=0;const k=Math.round(t*c.sampleRate),radius=Math.max(1,Math.round(c.sigma*c.sampleRate));for(let i=Math.max(0,k-radius);i<Math.min(matched.length,k+radius+1);i++)v=Math.max(v,matched[i]);return v;};
     const a=score(nominal),b=score(nominal+c.slot);early.push(a);late.push(b);decoded.push(b>a?1:0);
     expected.push(r.truth.find(t=>t.id==="A"+(j+1))?.bit??0);
