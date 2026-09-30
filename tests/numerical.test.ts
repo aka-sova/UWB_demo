@@ -137,3 +137,9 @@ test("PPM decodes exactly the symbols that were transmitted near the record end"
     assert.deepEqual(d.ppm.expected,sent.map(t=>t.bit),"seed "+seed);
   }
 });
+test("train 1 is the largest candidate train, so PRI ignores an isolated false event",()=>{
+  const d=analyze(simulateAcquisition(scenarioConfig("interference"))),sizes=new Map<number,number>();
+  for(const p of d.pulses)sizes.set(p.train,(sizes.get(p.train)??0)+1);
+  assert.equal(Math.max(...sizes.values()),sizes.get(1));
+  assert.ok(Math.abs(d.pri-defaults.pri)<1e-9,"PRI "+d.pri);
+});

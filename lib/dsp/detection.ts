@@ -118,6 +118,10 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
   // Frequency-consistent candidate trains. This heuristic deliberately exposes ambiguous merges.
   const trainCenters:number[]=[];
   for(const p of pulses){let train=trainCenters.findIndex(f=>Math.abs(f-p.frequency)<Math.max(.15e9,p.bandwidth*.25));if(train<0){train=trainCenters.length;trainCenters.push(p.frequency);}p.train=train+1;}
+  // Number trains by membership (ties by first appearance) so train 1 is the dominant candidate.
+  const counts=trainCenters.map((_,i)=>pulses.filter(p=>p.train===i+1).length);
+  const order=counts.map((_,i)=>i).sort((a,b)=>counts[b]-counts[a]||a-b),label=new Map(order.map((t,i)=>[t+1,i+1]));
+  for(const p of pulses)p.train=label.get(p.train)!;
   return pulses;
 }
 export function inverseSTFT(tf:TimeFrequency,c:Config,n:number,mask?:Uint8Array){
