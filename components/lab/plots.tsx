@@ -4,6 +4,7 @@ import {CartesianGrid,Line,LineChart,ReferenceLine,ResponsiveContainer,Tooltip,X
 import type {Result} from "@/lib/dsp/types";
 import {db} from "@/lib/dsp/numeric";
 import {useFontScale} from "./font-scale";
+import {cfarExtents} from "@/lib/dsp/detection";
 // Spectrogram plot margins; the label gutters grow with the text size.
 const frame=(scale:number)=>({L:Math.round(58*scale),T:Math.round(14*scale),R:16,B:Math.round(32*scale)});
 export function LinePlot({x,series,domain,xLabel,yLabel,cursor,onCursor,height=220}:{
@@ -80,7 +81,7 @@ export function Spectrogram({result,domain,cursor,onCursor,mode="power",selected
           const top=fy(fmin+(Math.min(tf.bins-1,f+rf)+.5)*tf.binSpacing),bottom=fy(fmin+(Math.max(0,f-rf)-.5)*tf.binSpacing);
           ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.strokeRect(left,top,right-left,bottom-top);
         };
-        box(c.guard+c.training,c.guard*4+3,"#49dbd0");box(c.guard,c.guard*4,"#f7bd65");box(0,0,"#ffffff");
+        const n=cfarExtents(tf,c);box(n.timeOuter,n.freqOuter,"#49dbd0");box(n.timeGuard,n.freqGuard,"#f7bd65");box(0,0,"#ffffff");
       }
       if(mode==="spots"&&result.detection)for(const s of result.detection.spots){ctx.strokeStyle="#f7bd65";ctx.lineWidth=1;ctx.strokeRect(fx(s.start),fy(s.high),Math.max(3,fx(s.end)-fx(s.start)),Math.max(3,fy(s.low)-fy(s.high)));}
       if(selectedPulse!==undefined&&result.detection){const p=result.detection.pulses.find(v=>v.id===selectedPulse);if(p){ctx.fillStyle="rgba(244,209,98,.12)";ctx.fillRect(fx(p.start),T,Math.max(2,fx(p.end)-fx(p.start)),h);ctx.strokeStyle="#f7bd65";ctx.strokeRect(fx(p.start),T,Math.max(2,fx(p.end)-fx(p.start)),h);}}

@@ -15,9 +15,15 @@ function osFactor(n:number,k:number,pfa:number){
   for(let it=0;it<45;it++){const m=(lo+hi)/2;if(logP(m)>Math.log(pfa))lo=m;else hi=m;}
   osCache.set(key,(lo+hi)/2);return (lo+hi)/2;
 }
+// CFAR neighborhood half-widths: time in frames, frequency converted from hertz to bins so the
+// guard and training bands stay physically fixed when the FFT length changes.
+export function cfarExtents(tf:TimeFrequency,c:Config){
+  const freqGuard=Math.round(c.freqGuard/tf.binSpacing);
+  return {timeGuard:c.guard,timeOuter:c.guard+c.training,freqGuard,freqOuter:freqGuard+Math.max(1,Math.round(c.freqTraining/tf.binSpacing))};
+}
 export function thresholdCells(tf:TimeFrequency,c:Config){
   const {frames:R,bins:C,power}=tf,mask=new Uint8Array(power.length),thresholds=new Float64Array(power.length),noise=new Float64Array(power.length);
-  const sum=integral(power,R,C),tg=c.guard,fg=c.guard*4,tw=tg+c.training,fw=fg+3;
+  const sum=integral(power,R,C),{timeGuard:tg,timeOuter:tw,freqGuard:fg,freqOuter:fw}=cfarExtents(tf,c);
   const sorted=Array.from(power).sort((a,b)=>a-b),floor=Math.max(1e-30,sorted[Math.floor(sorted.length/2)]/Math.log(2));
   for(let r=0;r<R;r++)for(let f=0;f<C;f++){
     const idx=r*C+f;

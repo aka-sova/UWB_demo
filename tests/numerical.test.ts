@@ -177,3 +177,16 @@ test("band-limited interpolation reproduces a sampled complex tone between sampl
   let e=0;for(let m=0;m<4*n;m++){e=Math.max(e,Math.abs(y[2*m]-Math.cos(2*Math.PI*k*m/(4*n))),Math.abs(y[2*m+1]-Math.sin(2*Math.PI*k*m/(4*n))));}
   assert.ok(e<1e-9,"max error "+e);
 });
+test("CFAR frequency neighborhood is set in hertz, independent of FFT length",async()=>{
+  const {cfarExtents}=await import("../lib/dsp/detection");
+  const base=simulateAcquisition(defaults);
+  assert.deepEqual(cfarExtents(base.tf,defaults),{timeGuard:2,timeOuter:8,freqGuard:8,freqOuter:11});
+  const fine=simulateAcquisition({...defaults,fftSize:1024});
+  assert.deepEqual(cfarExtents(fine.tf,{...defaults,fftSize:1024}),{timeGuard:2,timeOuter:8,freqGuard:32,freqOuter:45});
+  // A longer FFT must not let the pulse's own spectrum leak into the training cells and split it:
+  // each true pulse stays one spot, with no extra estimates beside it.
+  const d=analyze(fine);assert.equal(d.matchedCount,5);
+  for(const p of d.pulses)if(p.match)assert.equal(p.spotIds.length,1,p.match+" split into spots "+p.spotIds.join(","));
+  const near=d.pulses.filter(p=>!p.match&&fine.truth.some(t=>Math.abs(p.time-t.time)<10e-9));
+  assert.equal(near.length,0,"fragments beside true pulses: "+near.map(p=>(p.time*1e9).toFixed(1)).join(","));
+});
