@@ -190,3 +190,12 @@ test("CFAR frequency neighborhood is set in hertz, independent of FFT length",as
   const near=d.pulses.filter(p=>!p.match&&fine.truth.some(t=>Math.abs(p.time-t.time)<10e-9));
   assert.equal(near.length,0,"fragments beside true pulses: "+near.map(p=>(p.time*1e9).toFixed(1)).join(","));
 });
+test("a pulse's time-frequency support is the union of its spots",async()=>{
+  const {pulseSupport}=await import("../lib/dsp/detection");
+  const r=simulateAcquisition(scenarioConfig("overlap")),d=analyze(r);
+  for(const p of d.pulses){
+    const own=d.spots.filter(s=>p.spotIds.includes(s.id)),box=pulseSupport(p,d.spots);
+    assert.deepEqual(box,{start:Math.min(...own.map(s=>s.start)),end:Math.max(...own.map(s=>s.end)),low:Math.min(...own.map(s=>s.low)),high:Math.max(...own.map(s=>s.high))});
+    assert.ok(box.high-box.low<r.tf.frequencies[r.tf.bins-1]-r.tf.frequencies[0],"bounded in frequency");
+  }
+});

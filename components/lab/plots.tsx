@@ -4,7 +4,7 @@ import {CartesianGrid,Line,LineChart,ReferenceLine,ResponsiveContainer,Tooltip,X
 import type {Result} from "@/lib/dsp/types";
 import {db} from "@/lib/dsp/numeric";
 import {useFontScale} from "./font-scale";
-import {cfarExtents} from "@/lib/dsp/detection";
+import {cfarExtents,pulseSupport} from "@/lib/dsp/detection";
 // Spectrogram plot margins; the label gutters grow with the text size.
 const frame=(scale:number)=>({L:Math.round(58*scale),T:Math.round(14*scale),R:16,B:Math.round(32*scale)});
 export function LinePlot({x,series,domain,xLabel,yLabel,cursor,onCursor,height=220}:{
@@ -84,7 +84,16 @@ export function Spectrogram({result,domain,cursor,onCursor,mode="power",selected
         const n=cfarExtents(tf,c);box(n.timeOuter,n.freqOuter,"#49dbd0");box(n.timeGuard,n.freqGuard,"#f7bd65");box(0,0,"#ffffff");
       }
       if(mode==="spots"&&result.detection)for(const s of result.detection.spots){ctx.strokeStyle="#f7bd65";ctx.lineWidth=1;ctx.strokeRect(fx(s.start),fy(s.high),Math.max(3,fx(s.end)-fx(s.start)),Math.max(3,fy(s.low)-fy(s.high)));}
-      if(selectedPulse!==undefined&&result.detection){const p=result.detection.pulses.find(v=>v.id===selectedPulse);if(p){ctx.fillStyle="rgba(244,209,98,.12)";ctx.fillRect(fx(p.start),T,Math.max(2,fx(p.end)-fx(p.start)),h);ctx.strokeStyle="#f7bd65";ctx.strokeRect(fx(p.start),T,Math.max(2,fx(p.end)-fx(p.start)),h);}}
+      // Pulse support: the box around the spots the pulse was built from, and a cross at its
+      // estimated arrival time and centre frequency whose vertical bar spans ±BW10/2.
+      if(selectedPulse!==undefined&&result.detection){const p=result.detection.pulses.find(v=>v.id===selectedPulse);if(p){
+        const b=pulseSupport(p,result.detection.spots),x0=fx(b.start),y0=fy(b.high),bw=Math.max(2,fx(b.end)-x0),bh=Math.max(2,fy(b.low)-y0);
+        ctx.fillStyle="rgba(244,209,98,.12)";ctx.fillRect(x0,y0,bw,bh);ctx.strokeStyle="#f7bd65";ctx.lineWidth=2;ctx.strokeRect(x0,y0,bw,bh);
+        const tx=fx(p.time),cf=p.frequency-result.config.carrier;
+        // Dark halo under a white stroke keeps the cross visible over the bright pulse core.
+        for(const [color,width] of [["rgba(4,9,18,.75)",4],["#ffffff",1.5]] as const){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(tx,fy(cf+p.bandwidth/2));ctx.lineTo(tx,fy(cf-p.bandwidth/2));ctx.moveTo(tx-6,fy(cf));ctx.lineTo(tx+6,fy(cf));ctx.stroke();}
+        ctx.font=11*scale+"px ui-monospace, monospace";ctx.fillStyle="#f7bd65";ctx.fillText("P"+String(p.id).padStart(2,"0"),x0+2,y0>T+14*scale?y0-4:y0+bh+12*scale);
+      }}
       if(cursor>=domain[0]&&cursor<=domain[1]){ctx.strokeStyle="#f7bd65";ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(fx(cursor*1e-9),T);ctx.lineTo(fx(cursor*1e-9),T+h);ctx.stroke();ctx.setLineDash([]);}
       ctx.restore();ctx.font=12*scale+"px ui-monospace, monospace";ctx.fillStyle=muted;ctx.strokeStyle=grid;
       for(let i=0;i<5;i++){const value=fmin+(fmax-fmin)*i/4;ctx.fillText((value/1e9).toFixed(1),10,fy(value)+4*scale);}

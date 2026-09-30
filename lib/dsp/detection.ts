@@ -149,6 +149,12 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
   for(const p of pulses)p.train=label.get(p.train)!;
   return pulses;
 }
+// Time-frequency support of a pulse: the bounding box of the spots it was built from
+// (seconds; hertz relative to the carrier). Pulses split from one group share it.
+export function pulseSupport(p:Pulse,spots:Spot[]){
+  const own=spots.filter(s=>p.spotIds.includes(s.id));
+  return {start:Math.min(...own.map(s=>s.start)),end:Math.max(...own.map(s=>s.end)),low:Math.min(...own.map(s=>s.low)),high:Math.max(...own.map(s=>s.high))};
+}
 export function inverseSTFT(tf:TimeFrequency,c:Config,n:number,mask?:Uint8Array){
   const y=new Float64Array(n*2),denom=new Float64Array(n),L=tf.window.length,F=tf.fullBins,hop=Math.min(c.hop,L/2);
   for(let frame=0;frame<tf.frames;frame++){
