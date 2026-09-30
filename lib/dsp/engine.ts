@@ -11,6 +11,10 @@ export function pulseValue(t: number, c: Config): [number,number] {
   const norm=c.normalization==="energy" ? Math.sqrt(.6e-9/c.sigma) : 1;
   return [c.amplitude*norm*value*Math.cos(phase),c.amplitude*norm*value*Math.sin(phase)];
 }
+// Nominal (early-slot) time of symbol j. A symbol is generated, and decoded, only when its
+// latest possible slot lies at least 20 ns before the record end.
+export const nominalTime=(j:number,c:Config)=>(c.count===1 ? 200e-9 : 64e-9)+j*c.pri;
+export const symbolFits=(j:number,c:Config)=>nominalTime(j,c)+(c.ppm ? c.slot:0)<=DURATION-20e-9;
 // Offset of the DDC's 2fc mixing product after aliasing into [−fs/2, fs/2).
 export function ddcImage(carrier: number, fs: number) {
   const f=-2*carrier;return f-fs*Math.round(f/fs);
@@ -42,11 +46,11 @@ export function stft(x: Float64Array, c: Config): TimeFrequency {
 export function simulateAcquisition(c: Config): Result {
   const started=performance.now(), fs=REFERENCE_RATE, n=Math.round(DURATION*fs), rng=random(c.seed);
   const truth:TruthEvent[]=[], source=new Float64Array(n*2), channel=new Float64Array(n*2);
-  const first=c.count===1 ? 200e-9 : 64e-9;
+  const first=nominalTime(0,c);
   for(let j=0;j<c.count;j++) {
     const bit=c.ppm ? (random(c.seed+500+j).uniform()>.5 ? 1:0) : undefined;
-    const t=first+j*c.pri+(bit ? c.slot:0)+c.jitter*rng.normal();
-    if(t> DURATION-20e-9) continue;
+    const t=nominalTime(j,c)+(bit ? c.slot:0)+c.jitter*rng.normal();
+    if(!symbolFits(j,c)) continue;
     truth.push({id:"A"+(j+1),time:t,source:"A",kind:"direct",bit});
     if(c.echoGain>0 && t+c.echoDelay<DURATION) truth.push({id:"E"+(j+1),time:t+c.echoDelay,source:"A",kind:"echo"});
     if(c.secondary) {

@@ -1,6 +1,6 @@
 import type {Config,Detection,Pulse,Result,Spot,TimeFrequency,TruthEvent} from "./types";
 import {db,fft,halfPowerWidth,powerAt,spectrum} from "./numeric";
-import {pulseValue} from "./engine";
+import {nominalTime,pulseValue,symbolFits} from "./engine";
 
 function integral(values:Float64Array,rows:number,cols:number){
   const out=new Float64Array((rows+1)*(cols+1));
@@ -194,7 +194,7 @@ export function analyze(r:Result):Detection{
   const priJitter=intervals.length?Math.sqrt(intervals.reduce((s,t)=>s+(t-pri)**2,0)/intervals.length):NaN;
   const expected:number[]=[],decoded:number[]=[],early:number[]=[],late:number[]=[];
   if(c.ppm)for(let j=0;j<c.count;j++){
-    const nominal=(c.count===1?200e-9:64e-9)+j*c.pri;if(nominal+c.slot>=512e-9)continue;
+    if(!symbolFits(j,c))continue;const nominal=nominalTime(j,c);
     const score=(t:number)=>{let v=0;const k=Math.round(t*c.sampleRate),radius=Math.max(1,Math.round(c.sigma*c.sampleRate));for(let i=Math.max(0,k-radius);i<Math.min(matched.length,k+radius+1);i++)v=Math.max(v,matched[i]);return v;};
     const a=score(nominal),b=score(nominal+c.slot);early.push(a);late.push(b);decoded.push(b>a?1:0);
     expected.push(r.truth.find(t=>t.id==="A"+(j+1))?.bit??0);

@@ -129,3 +129,11 @@ test("anti-alias filter reaches its stopband before Nyquist and keeps the passba
   assert.ok(stop<-40,"2.1 GHz attenuation "+stop.toFixed(1)+" dB");
   assert.ok(pass>-1,"1.4 GHz attenuation "+pass.toFixed(1)+" dB");
 });
+test("PPM decodes exactly the symbols that were transmitted near the record end",()=>{
+  for(let seed=0;seed<16;seed++){
+    const r=simulateAcquisition({...defaults,ppm:true,count:8,pri:60e-9,slot:16e-9,snr:10,seed}),d=analyze(r);
+    const sent=r.truth.filter(t=>t.source==="A"&&t.kind==="direct");
+    assert.equal(d.ppm.expected.length,sent.length,"seed "+seed);
+    assert.deepEqual(d.ppm.expected,sent.map(t=>t.bit),"seed "+seed);
+  }
+});
