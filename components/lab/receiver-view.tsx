@@ -66,10 +66,11 @@ export function ReceiverView({r,stage,advanced,theme,domain,cursor,setCursor,sel
 function CfarLegend({r}:{r:Result}){
  const c=r.config,n=cfarExtents(r.tf,c),frame=Math.min(c.hop,c.windowSize/2)/c.sampleRate*1e9,mhz=r.tf.binSpacing/1e6;
  const size=(frames:number,bins:number)=>"±"+(frames*frame).toFixed(1)+" ns × ±"+(bins*mhz).toFixed(0)+" MHz";
- return <div className="cfar-legend" aria-label="CFAR neighborhood legend">
-  <span><i className="swatch cut"/>Cell under test</span>
-  <span><i className="swatch guard"/>Guard, excluded: {size(n.timeGuard,n.freqGuard)}</span>
-  <span><i className="swatch train"/>Training edge: {size(n.timeOuter,n.freqOuter)}; cells between the edges {c.detector==="os"?"are ranked (75th percentile)":"are averaged"} for the noise estimate</span>
-  <span className="cfar-hint">Click the plane to move the neighborhood. Record edges truncate it.</span>
+ // Three aligned columns: swatch, region, half-extent; the explanation follows as a note.
+ return <div className="cfar-legend" role="group" aria-label="CFAR neighborhood legend">
+  <i className="swatch cut"/><span>Cell under test</span><span/>
+  <i className="swatch guard"/><span>Guard (excluded)</span><span className="cfar-extent">{size(n.timeGuard,n.freqGuard)}</span>
+  <i className="swatch train"/><span>Training edge</span><span className="cfar-extent">{size(n.timeOuter,n.freqOuter)}</span>
+  <p className="cfar-note">Cells between the amber and teal edges {c.detector==="os"?"are ranked; the 75th percentile sets":"are averaged into"} the noise estimate. Click the plane to move the neighborhood; record edges truncate it.</p>
  </div>;
 }
