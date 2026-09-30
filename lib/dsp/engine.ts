@@ -11,6 +11,10 @@ export function pulseValue(t: number, c: Config): [number,number] {
   const norm=c.normalization==="energy" ? Math.sqrt(.6e-9/c.sigma) : 1;
   return [c.amplitude*norm*value*Math.cos(phase),c.amplitude*norm*value*Math.sin(phase)];
 }
+// Offset of the DDC's 2fc mixing product after aliasing into [−fs/2, fs/2).
+export function ddcImage(carrier: number, fs: number) {
+  const f=-2*carrier;return f-fs*Math.round(f/fs);
+}
 export function stft(x: Float64Array, c: Config): TimeFrequency {
   const n=x.length/2, L=c.windowSize, F=Math.max(c.fftSize,L), hop=Math.min(c.hop,L/2);
   const frames=Math.floor((n-1)/hop)+1, w=windowValues(L,c.window);
@@ -96,7 +100,9 @@ export function simulateAcquisition(c: Config): Result {
   let iq:Float64Array=new Float64Array(adc);
   if(c.realRF) {
     for(let i=0;i<count;i++){const phase=2*Math.PI*c.carrier*i/c.sampleRate; iq[2*i]=2*adc[2*i]*Math.cos(phase);iq[2*i+1]=-2*adc[2*i]*Math.sin(phase);}
-    iq=lowpass(iq,c.sampleRate,Math.min(c.rxBandwidth/2,.35*c.sampleRate));
+    // The mixer's 2fc product aliases to wrap(−2fc); keep the low-pass cutoff halfway to it.
+    const image=Math.abs(ddcImage(c.carrier,c.sampleRate));
+    iq=lowpass(iq,c.sampleRate,Math.max(c.sampleRate/128,Math.min(c.rxBandwidth/2,.35*c.sampleRate,image/2)));
   }
   const isolated=new Float64Array(n*2);
   let peak=0;

@@ -86,3 +86,10 @@ test("all presets satisfy parameter bounds and invalid sample rates are rejected
   assert.equal(configSchema.safeParse({...defaults,sampleRate:15e9}).success,false);
   assert.equal(configSchema.safeParse({...defaults,sigma:NaN}).success,false);
 });
+test("real-RF DDC rejects its aliased 2fc mixing image",()=>{
+  // fc = 3 GHz at 8 GS/s: the 2fc product aliases to +2 GHz and must not reach the I/Q record.
+  const c={...scenarioConfig("sampling"),sampleRate:8e9 as const,snr:40,bits:16},r=simulateAcquisition(c);
+  const {frequency,psd}=r.spectrum,peak=Math.max(...psd);
+  let image=0;for(let i=0;i<frequency.length;i++)if(Math.abs(frequency[i]-2e9)<.1e9)image=Math.max(image,psd[i]);
+  assert.ok(10*Math.log10(image/peak)<-40,"image "+(10*Math.log10(image/peak)).toFixed(1)+" dB");
+});
