@@ -77,6 +77,8 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
   const step=2*c.fullScale/2**c.bits,top=(2**(c.bits-1)-1)*step-step/2,bottom=-c.fullScale+step/2;
   const onRail=(k:number)=>!c.realRF&&(iq[2*k]>=top||iq[2*k]<=bottom||iq[2*k+1]>=top||iq[2*k+1]<=bottom);
   const smooth=(i:number)=>(powerAt(iq,i-1)+2*powerAt(iq,i)+powerAt(iq,i+1))/4;
+  // Extra peaks (deblending, first arrival) must exceed the energy threshold over record noise.
+  const significant=recordNoise*10**(c.thresholdDb/10);
   let lastPeak=-Infinity,lastWidth=0;
   for(const group of groups){
     const start=Math.max(0,Math.min(...group.map(s=>s.start))-tf.windowDuration/2);
@@ -89,7 +91,7 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
     if(c.family==="gaussian"){
       const candidates:number[]=[];
       for(let i=Math.max(2,Math.floor(start*fs));i<Math.min(n-2,Math.ceil(end*fs));i++)
-        if(smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)&&smooth(i)>.15*smooth(peak))candidates.push(i);
+        if(smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)&&smooth(i)>.15*smooth(peak)&&smooth(i)>significant)candidates.push(i);
       candidates.sort((a,b)=>smooth(b)-smooth(a));
       for(const candidate of candidates){
         if(peaks.length>=16)break;
@@ -101,9 +103,9 @@ export function assemblePulses(tf:TimeFrequency,spots:Spot[],iq:Float64Array,c:C
     // path. Look back for the earliest local maximum above the energy threshold over record noise.
     let firstPath=-1;
     if(c.searchBack>0){
-      const earliest=Math.min(...peaks),w=halfPowerWidth(iq,peaks[0],fs),limit=recordNoise*10**(c.thresholdDb/10);
+      const earliest=Math.min(...peaks),w=halfPowerWidth(iq,peaks[0],fs);
       const from=Math.max(2,Math.floor((earliest/fs-c.searchBack)*fs),Math.ceil(lastPeak+3*lastWidth*fs)),to=earliest-Math.ceil(3*w*fs);
-      for(let i=from;i<to;i++)if(smooth(i)>limit&&smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)){firstPath=i;peaks.push(i);break;}
+      for(let i=from;i<to;i++)if(smooth(i)>significant&&smooth(i)>smooth(i-1)&&smooth(i)>=smooth(i+1)){firstPath=i;peaks.push(i);break;}
     }
     for(const refined of peaks.sort((a,b)=>a-b)){
     peak=refined;

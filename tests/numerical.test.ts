@@ -156,3 +156,7 @@ test("monocycle and chirp arrivals are timed from the known-template correlation
   const chirp=analyze(simulateAcquisition(scenarioConfig("chirp")));
   assert.equal(chirp.matchedCount,3);assert.ok(chirp.timingRmse<.1e-9,"chirp "+(chirp.timingRmse*1e12).toFixed(0)+" ps");
 });
+test("Gaussian deblending does not split groups on noise peaks",()=>{
+  const d=analyze(simulateAcquisition({...defaults,snr:-16,pfa:.005}));
+  assert.equal(d.matchedCount,5);assert.ok(d.falseEvents<=2,"false events "+d.falseEvents);
+});
