@@ -78,11 +78,14 @@ export function simulateAcquisition(c: Config): Result {
   let recovery=1;
   const recoverAlpha=c.recovery>0 ? 1-Math.exp(-1/(fs*c.recovery)):1;
   for(let i=0;i<n;i++) {
+    // Overload lowers a gain state that recovers exponentially; the radial limiter then clips
+    // the suppressed drive, so overload holds the limit instead of folding back below it.
     const magnitude=Math.sqrt(powerAt(front,i))*gain;
     if(c.recovery===0) recovery=1;
     else if(magnitude>c.limiter) recovery=Math.min(recovery,c.limiter/magnitude);
     else recovery+=(1-recovery)*recoverAlpha;
-    const scale=gain*Math.min(1,c.limiter/Math.max(magnitude,1e-30))*recovery;
+    const drive=magnitude*recovery;
+    const scale=gain*recovery*Math.min(1,c.limiter/Math.max(drive,1e-30));
     front[2*i]*=scale;front[2*i+1]*=scale;
   }
   if(c.realRF) {

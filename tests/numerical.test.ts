@@ -101,3 +101,11 @@ test("receiver filter noise bandwidth follows the bandwidth control",()=>{
     assert.ok(Math.abs(ratio/expected-1)<.15,rxBandwidth/1e9+" GHz: measured "+(ratio*64).toFixed(2)+" GHz");
   }
 });
+test("limiter with recovery holds overload at the limit and suppresses only later samples",()=>{
+  const c={...scenarioConfig("transient"),snr:40,fullScale:6,echoGain:0},r=simulateAcquisition(c),fs=c.sampleRate;
+  let peak=0;for(let i=0;i<r.front.length/2;i++)peak=Math.max(peak,Math.sqrt(powerAt(r.front,i)));
+  assert.ok(peak>.98*c.limiter&&peak<=c.limiter*1.001,"peak "+peak.toFixed(3)+" V for a "+c.limiter+" V limit");
+  // Recovery memory: the falling edge is attenuated relative to the rising edge.
+  const center=Math.round(r.truth[0].time*fs),d=Math.round(1e-9*fs),before=Math.sqrt(powerAt(r.front,center-d)),after=Math.sqrt(powerAt(r.front,center+d));
+  assert.ok(after<before,"after "+after.toFixed(3)+" before "+before.toFixed(3));
+});
