@@ -13,7 +13,7 @@ export const stages=[
 export function Equation({tex}:{tex:string}){return <div className="equation" dangerouslySetInnerHTML={{__html:katex.renderToString(tex,{throwOnError:false,displayMode:true})}}/>;}
 export function StageInspector({stage,result,advanced}:{stage:number;result:Result;advanced:boolean}){
  const s=stages[stage],c=result.config;
- return <aside className="stage-inspector"><p className="eyebrow">INSIDE STAGE {String(stage+1).padStart(2,"0")}</p><h2>{s.title}</h2><p>{s.text}</p><Equation tex={s.formula}/>
+ return <aside className="stage-inspector" data-tour="inspector"><p className="eyebrow">INSIDE STAGE {String(stage+1).padStart(2,"0")}</p><h2>{s.title}</h2><p>{s.text}</p><Equation tex={s.formula}/>
   <dl className="inspector-metrics">
    {stage===0?<><div><dt>Carrier</dt><dd>{(c.carrier/1e9).toFixed(2)} GHz</dd></div><div><dt>Single-pulse energy</dt><dd>{(result.sourceEnergy*1e9).toFixed(3)} V²·ns</dd></div><div><dt>−10 dB fraction</dt><dd>{(100*result.sourceBandwidth/c.carrier).toFixed(1)}%</dd></div></>:
    stage===3?<><div><dt>Clipped samples</dt><dd>{result.clipped} / {result.time.length}</dd></div><div><dt>Code step</dt><dd>{(2*c.fullScale/2**c.bits*1e3).toFixed(3)} mV</dd></div><div><dt>Sample interval</dt><dd>{(1e12/c.sampleRate).toFixed(1)} ps</dd></div>{c.realRF&&<><div><dt>Carrier Nyquist zone</dt><dd>{Math.floor(c.carrier/(c.sampleRate/2))+1}{c.carrier>=c.sampleRate/2?" · bandpass":""}</dd></div><div><dt>DDC 2fc image</dt><dd>{(ddcImage(c.carrier,c.sampleRate)/1e9).toFixed(2)} GHz</dd></div></>}</>:
