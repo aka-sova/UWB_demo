@@ -14,7 +14,7 @@ import {ValidationView} from "./validation-view";
 import {stages} from "./stage-inspector";
 import {Toggle} from "./controls";
 import {useLabTools} from "./webmcp";
-import DspWorker from "../../lib/dsp/worker?worker";
+import {createDspWorker} from "@/lib/dsp/create-worker";
 
 export default function Lab(){
  const [config,setConfig]=useState<Config>(defaults),[result,setResult]=useState<Result>(),[theme,setTheme]=useState("dark");
@@ -30,7 +30,7 @@ export default function Lab(){
   // eslint-disable-next-line react-hooks/set-state-in-effect
   setTheme(localStorage.getItem("uwb-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"));
   if(window.innerWidth<760)setControlsOpen(false);
-  const w=new DspWorker();worker.current=w;
+  const w=createDspWorker();worker.current=w;
   w.onmessage=e=>{
    if(e.data.id!==job.current)return;
    setBusy(false);
