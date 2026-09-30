@@ -62,16 +62,12 @@ export function Tutorial({steps,state,actions,onExit}:{steps:TourStep[];state:To
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[done,index,last]);
 
+  // Only Esc is bound: arrow keys belong to the sliders and menus the tour asks users to operate,
+  // and the card's buttons are reachable with Tab and Enter.
   useEffect(()=>{
-    const onKey=(e:KeyboardEvent)=>{
-      if(e.key==="Escape"){e.preventDefault();exitRef.current(false);return;}
-      if(!cardRef.current?.contains(e.target as Node))return;
-      if(e.key==="ArrowRight"&&!steps[index].waitFor){e.preventDefault();if(index===steps.length-1)exitRef.current(true);else go(index+1);}
-      if(e.key==="ArrowLeft"&&index>0){e.preventDefault();go(index-1);}
-    };
+    const onKey=(e:KeyboardEvent)=>{if(e.key==="Escape"){e.preventDefault();exitRef.current(false);}};
     addEventListener("keydown",onKey);return()=>removeEventListener("keydown",onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[index,steps]);
+  },[]);
 
   const mobile=view.width<760;
   let placement:CSSProperties;
