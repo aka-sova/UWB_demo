@@ -29,7 +29,13 @@ export function random(seed: number) {
   };
   return {uniform, normal: () => Math.sqrt(-2*Math.log(Math.max(1e-12,uniform()))) * Math.cos(2*Math.PI*uniform())};
 }
+// Odd Hamming-windowed-sinc length whose transition band (≈3.3 fs/N) is at most `transition`.
+export function firTaps(fs: number, transition: number, min = 63, max = 4095) {
+  const n=Math.ceil(3.3*fs/Math.max(transition,1)), odd=n%2 ? n : n+1;
+  return Math.min(max,Math.max(min,odd));
+}
 // Symmetric FIR evaluated offline with group-delay compensation and zero extension.
+// Linear convolution is computed by FFT so long filters remain inexpensive.
 export function lowpass(x: Float64Array, fs: number, cutoff: number, taps = 63) {
   const n=x.length/2, m=(taps-1)/2, h=new Float64Array(taps);
   const ratio=Math.min(.49,cutoff/fs); let sum=0;
@@ -38,13 +44,12 @@ export function lowpass(x: Float64Array, fs: number, cutoff: number, taps = 63) 
     h[k]=(d===0 ? 2*ratio : Math.sin(2*Math.PI*ratio*d)/(Math.PI*d))*(.54-.46*Math.cos(2*Math.PI*k/(taps-1)));
     sum+=h[k];
   }
-  for(let k=0;k<taps;k++) h[k]/=sum;
-  const y=new Float64Array(x.length);
-  for(let i=0;i<n;i++) {
-    let re=0,im=0;
-    for(let k=0;k<taps;k++) { const j=i+k-m; if(j>=0&&j<n) {re+=h[k]*x[2*j]; im+=h[k]*x[2*j+1];} }
-    y[2*i]=re; y[2*i+1]=im;
-  }
+  const size=2**Math.ceil(Math.log2(n+taps-1)), a=new Float64Array(size*2), b=new Float64Array(size*2);
+  a.set(x); for(let k=0;k<taps;k++) b[2*k]=h[k]/sum;
+  const A=fft(a), B=fft(b);
+  for(let k=0;k<size;k++) {const ar=A[2*k],ai=A[2*k+1];A[2*k]=ar*B[2*k]-ai*B[2*k+1];A[2*k+1]=ar*B[2*k+1]+ai*B[2*k];}
+  const z=fft(A,true), y=new Float64Array(x.length);
+  for(let i=0;i<n;i++) {y[2*i]=z[2*(i+m)]; y[2*i+1]=z[2*(i+m)+1];}
   return y;
 }
 export function resample(x: Float64Array, step: number) {

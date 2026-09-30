@@ -1,5 +1,5 @@
 import {Config, Result, TimeFrequency, TruthEvent, DURATION, REFERENCE_RATE} from "./types";
-import {energy, fft, halfPowerWidth, lowpass, powerAt, random, resample, spectrum, windowValues} from "./numeric";
+import {energy, fft, firTaps, halfPowerWidth, lowpass, powerAt, random, resample, spectrum, windowValues} from "./numeric";
 
 export function pulseValue(t: number, c: Config): [number,number] {
   const u=t/c.sigma;
@@ -72,7 +72,8 @@ export function simulateAcquisition(c: Config): Result {
     channel[2*i]+=sd*rng.normal()+c.interference*Math.cos(phase);
     channel[2*i+1]+=sd*rng.normal()+c.interference*Math.sin(phase);
   }
-  let front=lowpass(channel,fs,c.rxBandwidth/2);
+  // Transition width scales with the passband so narrow receiver settings stay accurate.
+  let front=lowpass(channel,fs,c.rxBandwidth/2,firTaps(fs,c.rxBandwidth/4));
   const gain=Math.pow(10,c.gainDb/20);
   let recovery=1;
   const recoverAlpha=c.recovery>0 ? 1-Math.exp(-1/(fs*c.recovery)):1;

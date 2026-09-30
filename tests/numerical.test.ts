@@ -93,3 +93,11 @@ test("real-RF DDC rejects its aliased 2fc mixing image",()=>{
   let image=0;for(let i=0;i<frequency.length;i++)if(Math.abs(frequency[i]-2e9)<.1e9)image=Math.max(image,psd[i]);
   assert.ok(10*Math.log10(image/peak)<-40,"image "+(10*Math.log10(image/peak)).toFixed(1)+" dB");
 });
+test("receiver filter noise bandwidth follows the bandwidth control",()=>{
+  for(const rxBandwidth of [.5e9,1e9,6e9]){
+    // Subtract a noise-free record so pulse energy does not bias the noise-bandwidth estimate.
+    const r=simulateAcquisition({...defaults,snr:-25,rxBandwidth}),clean=simulateAcquisition({...defaults,snr:40,rxBandwidth});
+    const ratio=(energy(r.front,1)-energy(clean.front,1))/(energy(r.channel,1)-energy(clean.channel,1)),expected=rxBandwidth/64e9;
+    assert.ok(Math.abs(ratio/expected-1)<.15,rxBandwidth/1e9+" GHz: measured "+(ratio*64).toFixed(2)+" GHz");
+  }
+});
