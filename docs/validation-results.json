@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-30T14:09:17.478Z",
+  "generatedAt": "2026-09-30T17:16:41.108Z",
   "runtime": "v22.18.0",
   "platform": "win32",
   "method": "16 seeded records per scenario; separate white-noise STFT records for per-cell false-alarm measurement. Node timings exclude UI rendering.",
@@ -15,10 +15,10 @@
       "probability": 1,
       "cellFalseAlarm": 0.001641027706185567,
       "requestedPfa": 0.001,
-      "timingRmse": 1.7636431449622418e-11,
-      "roundTripError": 1.7815838373899097e-16,
-      "meanMs": 97.58121874999998,
-      "maxMs": 218.40500000000003,
+      "timingRmse": 1.9087985100016022e-11,
+      "roundTripError": 1.7518008024611785e-16,
+      "meanMs": 126.3197875,
+      "maxMs": 300.13239999999996,
       "config": {
         "family": "gaussian",
         "sigma": 6e-10,
@@ -60,7 +60,8 @@
         "seed": 42,
         "ppm": false,
         "slot": 8e-9,
-        "rejectTones": true
+        "rejectTones": true,
+        "searchBack": 0
       }
     },
     {
@@ -69,14 +70,14 @@
       "events": 32,
       "matched": 32,
       "missed": 0,
-      "falseEvents": 10,
+      "falseEvents": 1,
       "probability": 1,
       "cellFalseAlarm": 0.0003460756282216495,
       "requestedPfa": 0.0001,
-      "timingRmse": 1.230893660364106e-12,
-      "roundTripError": 1.668356403759415e-16,
-      "meanMs": 106.65465625000007,
-      "maxMs": 151.29680000000008,
+      "timingRmse": 1.2799989192825179e-12,
+      "roundTripError": 1.8012194823427232e-16,
+      "meanMs": 161.33289999999997,
+      "maxMs": 240.7545,
       "config": {
         "family": "gaussian",
         "sigma": 4e-10,
@@ -118,26 +119,27 @@
         "seed": 42,
         "ppm": false,
         "slot": 8e-9,
-        "rejectTones": true
+        "rejectTones": true,
+        "searchBack": 0
       }
     },
     {
       "scenario": "weak",
       "trials": 16,
       "events": 80,
-      "matched": 80,
-      "missed": 0,
-      "falseEvents": 157,
-      "probability": 1,
-      "cellFalseAlarm": 0.006750362435567011,
-      "requestedPfa": 0.005,
-      "timingRmse": 1.521944422335715e-10,
-      "roundTripError": 1.716133544394835e-16,
-      "meanMs": 81.46139374999984,
-      "maxMs": 101.44509999999991,
+      "matched": 72,
+      "missed": 8,
+      "falseEvents": 8,
+      "probability": 0.9,
+      "cellFalseAlarm": 0.0016487027391975308,
+      "requestedPfa": 0.001,
+      "timingRmse": 8.682233464784845e-10,
+      "roundTripError": 1.7029089061232563e-16,
+      "meanMs": 112.49806249999995,
+      "maxMs": 177.16420000000016,
       "config": {
         "family": "gaussian",
-        "sigma": 6e-10,
+        "sigma": 1.5e-9,
         "carrier": 4000000000,
         "amplitude": 0.8,
         "normalization": "peak",
@@ -145,7 +147,7 @@
         "count": 5,
         "jitter": 0,
         "chirpBandwidth": 1200000000,
-        "snr": -16,
+        "snr": -22,
         "echoDelay": 1e-8,
         "echoGain": 0,
         "interference": 0,
@@ -153,10 +155,10 @@
         "secondary": false,
         "secondaryOffset": 800000000,
         "secondaryDelay": 1.8e-8,
-        "sampleRate": 16000000000,
-        "rxBandwidth": 6000000000,
+        "sampleRate": 32000000000,
+        "rxBandwidth": 10000000000,
         "gainDb": 0,
-        "fullScale": 1.5,
+        "fullScale": 3,
         "bits": 12,
         "limiter": 10,
         "recovery": 0,
@@ -168,7 +170,7 @@
         "window": "hann",
         "detector": "ca",
         "thresholdDb": 12,
-        "pfa": 0.005,
+        "pfa": 0.001,
         "training": 6,
         "guard": 2,
         "minCells": 10,
@@ -176,7 +178,8 @@
         "seed": 42,
         "ppm": false,
         "slot": 8e-9,
-        "rejectTones": true
+        "rejectTones": true,
+        "searchBack": 0
       }
     },
     {
@@ -189,10 +192,10 @@
       "probability": 1,
       "cellFalseAlarm": 0.001641027706185567,
       "requestedPfa": 0.001,
-      "timingRmse": 1.0873377883527e-10,
-      "roundTripError": 1.7570212906199484e-16,
-      "meanMs": 76.06455625000007,
-      "maxMs": 97.91280000000006,
+      "timingRmse": 1.1781255767991351e-10,
+      "roundTripError": 1.7200425210759656e-16,
+      "meanMs": 76.25697500000012,
+      "maxMs": 94.5635999999995,
       "config": {
         "family": "gaussian",
         "sigma": 6e-10,
@@ -234,7 +237,8 @@
         "seed": 42,
         "ppm": true,
         "slot": 8e-9,
-        "rejectTones": true
+        "rejectTones": true,
+        "searchBack": 0
       }
     }
   ]

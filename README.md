@@ -40,7 +40,7 @@ Complex STFT coefficients support masked iSTFT; pulse-family fitting offers a se
 - [Saved Monte Carlo measurements](docs/validation-results.json)
 - [Implementation status](docs/STATUS.md)
 
-All thirteen numerical tests pass. In the reference ensemble, the baseline detects 80/80 events over 16 seeds with no unmatched estimates and 17.6 ps matched-event timing RMSE. This is a simulation result under recorded assumptions, not a receiver specification.
+All 26 numerical tests pass. In the reference ensemble, the baseline detects 80/80 events over 16 seeds with no unmatched estimates and 19.1 ps matched-event timing RMSE. This is a simulation result under recorded assumptions, not a receiver specification.
 
 Browser automation was denied in the implementation environment. Production compilation, static checks and numerical behavior are verified; rendered layouts, keyboard interaction, browser compatibility and optional WebMCP registration still need a permitted browser review.
 
