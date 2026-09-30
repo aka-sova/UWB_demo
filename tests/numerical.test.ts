@@ -170,3 +170,10 @@ test("weak-pulse preset is buried per sample but recovered by the matched filter
   for(const t of r.truth){const k=Math.round(t.time*fs);let m=0;for(let i=k-3;i<=k+3;i++)m=Math.max(m,d.matched[i]);assert.ok(20*Math.log10(m/mfNoise)>10,t.id);}
   assert.equal(d.energyEvents.filter(e=>r.truth.some(t=>Math.abs(e-t.time)<2e-9)).length,0);
 });
+test("band-limited interpolation reproduces a sampled complex tone between samples",async()=>{
+  const {interpolate}=await import("../lib/dsp/numeric");
+  const n=256,k=37,x=new Float64Array(n*2);for(let i=0;i<n;i++){x[2*i]=Math.cos(2*Math.PI*k*i/n);x[2*i+1]=Math.sin(2*Math.PI*k*i/n);}
+  const y=interpolate(x,4);assert.equal(y.length,x.length*4);
+  let e=0;for(let m=0;m<4*n;m++){e=Math.max(e,Math.abs(y[2*m]-Math.cos(2*Math.PI*k*m/(4*n))),Math.abs(y[2*m+1]-Math.sin(2*Math.PI*k*m/(4*n))));}
+  assert.ok(e<1e-9,"max error "+e);
+});

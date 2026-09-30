@@ -1,7 +1,7 @@
 "use client";
 import {useMemo} from "react";
 import {Result} from "@/lib/dsp/types";
-import {db} from "@/lib/dsp/numeric";
+import {db,interpolate} from "@/lib/dsp/numeric";
 import {LinePlot,magnitude,real,Spectrogram} from "./plots";
 import {Choice} from "./controls";
 import {StageInspector} from "./stage-inspector";
@@ -13,27 +13,30 @@ export function ReceiverView({r,stage,advanced,theme,domain,cursor,setCursor,sel
 }){
  const c=r.config,d=r.detection!;
  const plots=useMemo(()=>{
+  // RF is synthesized on a band-limited interpolated grid with at least 8 points per cycle of fc + fs/2.
+  const factor=representation==="rf"?Math.min(64,2**Math.ceil(Math.log2(Math.max(1,8*(c.carrier+c.sampleRate/2)/c.sampleRate)))):1;
+  const rf=factor>1?{iq:interpolate(r.iq,factor),time:Float64Array.from({length:r.time.length*factor},(_,i)=>i/(c.sampleRate*factor))}:{iq:r.iq,time:r.time};
   const selectedSignal=stage===0?r.source:stage===1?r.channel:stage===2?r.front:stage===3?r.adc:r.iq;
   const name=stage===0?"Source":stage===1?"Channel":stage===2?"Front end":stage===3?"ADC":"Receiver I/Q";
   const signal=representation==="iq"?[{name:name+" I",values:real(selectedSignal),color:"var(--blue)"},{name:name+" Q",values:Float64Array.from({length:selectedSignal.length/2},(_,i)=>selectedSignal[2*i+1]),color:"var(--cyan)"}]:
-   representation==="rf"?[{name:"Reconstructed RF",values:Float64Array.from(r.time,(t,i)=>r.iq[2*i]*Math.cos(2*Math.PI*c.carrier*t)-r.iq[2*i+1]*Math.sin(2*Math.PI*c.carrier*t)),color:"var(--blue)"}]:
+   representation==="rf"?[{name:"Reconstructed RF",values:Float64Array.from(rf.time,(t,i)=>rf.iq[2*i]*Math.cos(2*Math.PI*c.carrier*t)-rf.iq[2*i+1]*Math.sin(2*Math.PI*c.carrier*t)),color:"var(--blue)"}]:
    [{name:"Source envelope",values:magnitude(r.source),color:"var(--cyan)",dashed:true},{name:name+" envelope",values:magnitude(selectedSignal),color:"var(--blue)"}];
-  return {time:Float64Array.from(r.time,t=>t*1e9),signal,freq:Float64Array.from(r.spectrum.frequency,v=>v/1e9),
+  return {time:Float64Array.from(r.time,t=>t*1e9),signalTime:Float64Array.from(rf.time,t=>t*1e9),rate:c.sampleRate*factor,signal,freq:Float64Array.from(r.spectrum.frequency,v=>v/1e9),
    psd:[{name:"Receiver PSD",values:Float64Array.from(r.spectrum.psd,db),color:"var(--cyan)"}],
    correlation:[{name:"Envelope",values:magnitude(r.iq),color:"var(--muted-foreground)"},{name:"Matched-filter amplitude",values:d.matched,color:"var(--amber)"}],
    reconstruction:[{name:"Received I",values:real(r.iq),color:"var(--muted-foreground)"},{name:"Masked iSTFT I",values:real(d.recovered),color:"var(--cyan)"},{name:"Template fit I",values:real(d.fitted),color:"var(--amber)",dashed:true}],
    residual:[{name:"Residual I",values:Float64Array.from({length:r.iq.length/2},(_,i)=>r.iq[2*i]-d.recovered[2*i]),color:"var(--blue)"}],
    integrated:Float64Array.from({length:r.tf.frames},(_,t)=>{let power=0;for(let f=0;f<r.tf.bins;f++)power+=r.tf.power[t*r.tf.bins+f]*r.tf.binSpacing;return power;})
   };
- },[r,stage,representation,c.carrier,d]);
+ },[r,stage,representation,c.carrier,c.sampleRate,d]);
  const frame=Math.max(0,Math.min(r.tf.frames-1,Math.round(cursor*1e-9*c.sampleRate/Math.min(c.hop,c.windowSize/2))));
  const slice=useMemo(()=>[{name:"Frame PSD",values:Float64Array.from({length:r.tf.bins},(_,f)=>db(r.tf.power[frame*r.tf.bins+f])),color:"var(--blue)"},{name:"Noise estimate",values:Float64Array.from({length:r.tf.bins},(_,f)=>db(d.noise[frame*r.tf.bins+f])),color:"var(--muted-foreground)",dashed:true},{name:"Threshold",values:Float64Array.from({length:r.tf.bins},(_,f)=>db(d.thresholds[frame*r.tf.bins+f])),color:"var(--amber)"}],[frame,r,d]);
  const freqDomain:[number,number]=[-Math.min(c.sampleRate*.45,Math.max(c.rxBandwidth/2,1.5e9))/1e9,Math.min(c.sampleRate*.45,Math.max(c.rxBandwidth/2,1.5e9))/1e9];
  const active=d.pulses.find(p=>p.id===selected);
  return <>
   <div className="readouts"><div><span>−10 dB source bandwidth</span><strong>{(r.sourceBandwidth/1e9).toFixed(3)} <small>GHz</small></strong></div><div><span>Main-lobe power FWHM</span><strong>{(r.sourceWidth*1e9).toFixed(3)} <small>ns</small></strong></div><div><span>Detected / truth events</span><strong>{d.pulses.length} <small>/ {r.truth.length}</small></strong></div><div><span>Matched-event timing RMSE</span><strong>{Number.isFinite(d.timingRmse)?(d.timingRmse*1e12).toFixed(1):"—"} <small>ps</small></strong></div></div>
-  <div className="chart-grid"><section className="plot-card"><div className="card-heading"><div><span className="section-index">A</span><h2>Time domain</h2></div><div className="compact-choice"><Choice label="Trace" value={representation} options={[{value:"envelope",label:"Envelope"},{value:"iq",label:"I & Q"},{value:"rf",label:"RF from I/Q"}]} onChange={setRepresentation}/></div></div><LinePlot x={plots.time} series={plots.signal} domain={domain} xLabel="Time (ns)" yLabel={representation==="envelope"?"Envelope (V)":"Voltage (V)"} cursor={cursor} onCursor={setCursor}/>
-   <div className="plot-caption">{representation==="rf"?"RF interpolated from sampled I/Q. Use real-RF acquisition to study sampling loss.":"Extrema-preserving display; processing always uses the full sample record."}</div></section>
+  <div className="chart-grid"><section className="plot-card"><div className="card-heading"><div><span className="section-index">A</span><h2>Time domain</h2></div><div className="compact-choice"><Choice label="Trace" value={representation} options={[{value:"envelope",label:"Envelope"},{value:"iq",label:"I & Q"},{value:"rf",label:"RF from I/Q"}]} onChange={setRepresentation}/></div></div><LinePlot x={representation==="rf"?plots.signalTime:plots.time} series={plots.signal} domain={domain} xLabel="Time (ns)" yLabel={representation==="envelope"?"Envelope (V)":"Voltage (V)"} cursor={cursor} onCursor={setCursor}/>
+   <div className="plot-caption">{representation==="rf"?"RF synthesized from I/Q after band-limited interpolation to "+(plots.rate/1e9).toFixed(0)+" GS/s. Interpolation cannot restore bandwidth lost at sampling; use real-RF acquisition to study that loss.":"Extrema-preserving display; processing always uses the full sample record."}</div></section>
    <section className="plot-card"><div className="card-heading"><div><span className="section-index">B</span><h2>Receiver spectrum</h2></div><span className="micro-label">{(c.carrier/1e9).toFixed(2)} GHz CARRIER</span></div><LinePlot x={plots.freq} series={plots.psd} domain={freqDomain} xLabel="Carrier offset (GHz)" yLabel="PSD (dBV²/Hz)"/><div className="plot-caption">Two-sided Hann-windowed periodogram of the acquired I/Q record.</div></section></div>
   <div className="analysis-grid"><section className="plot-card waterfall"><div className="card-heading"><div><span className="section-index">C</span><h2>Time-frequency plane</h2></div><div className="segmented" aria-label="Spectrogram view">{(["power","mask","spots"] as const).map(m=><button key={m} aria-pressed={maskMode===m} className={maskMode===m?"chosen":""} onClick={()=>setMaskMode(m)}>{m==="power"?"Power":m==="mask"?"Detections":"Spots"}</button>)}</div></div>
    <Spectrogram key={theme} result={r} domain={domain} cursor={cursor} onCursor={setCursor} mode={maskMode} selectedPulse={selected} inspect={stage===5||advanced}/>

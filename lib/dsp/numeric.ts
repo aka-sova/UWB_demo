@@ -75,3 +75,13 @@ export function spectrum(x: Float64Array, fs: number, type = "hann") {
   for(let i=0;i<n;i++) {const k=(i+n/2)%n;frequency[i]=(i-n/2)*fs/n;psd[i]=powerAt(f,k)/(fs*ww);}
   return {frequency,psd};
 }
+// Band-limited (periodic, FFT zero-padding) interpolation of complex samples by an integer
+// power-of-two factor. Display only: it cannot restore bandwidth lost at sampling.
+export function interpolate(x: Float64Array, factor: number) {
+  const n=x.length/2, m=n*factor, X=fft(x), Y=new Float64Array(m*2);
+  for(let k=0;k<n/2;k++) {Y[2*k]=X[2*k]*factor;Y[2*k+1]=X[2*k+1]*factor;}
+  for(let k=n/2+1;k<n;k++) {const j=m-(n-k);Y[2*j]=X[2*k]*factor;Y[2*j+1]=X[2*k+1]*factor;}
+  // Split the Nyquist bin between the positive and negative edges.
+  const h=n/2;Y[2*h]=X[2*h]*factor/2;Y[2*h+1]=X[2*h+1]*factor/2;Y[2*(m-h)]=X[2*h]*factor/2;Y[2*(m-h)+1]=X[2*h+1]*factor/2;
+  return fft(Y,true);
+}
